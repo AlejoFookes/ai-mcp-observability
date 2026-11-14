@@ -5,13 +5,16 @@ members = ["sdks/*", "services/*"]
 dev = [
     "multimcp[openai]",
     "multimcp-proxy",
+    "multimcp-api",
     "pytest>=8.3,<10",
+    "pytest-asyncio>=0.24,<1",
     "ruff>=0.8,<1",
 ]
 
 [tool.uv.sources]
 multimcp = { workspace = true }
 multimcp-proxy = { workspace = true }
+multimcp-api = { workspace = true }
 
 [tool.ruff]
 target-version = "py312"
@@ -23,7 +26,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN"]
 ignore = ["ANN401"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["multimcp", "multimcp_proxy"]
+known-first-party = ["multimcp", "multimcp_proxy", "multimcp_api"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["ANN"]
@@ -31,3 +34,5 @@ known-first-party = ["multimcp", "multimcp_proxy"]
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "-ra"]
 testpaths = ["sdks", "services"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
