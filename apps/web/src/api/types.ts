@@ -22,7 +22,7 @@ export interface ApiErrorBody {
 export interface HealthResponse {
   schema_version: SchemaVersion;
   status: "ok" | "degraded";
-  storage_backend: "postgres" | "bigquery";
+  storage_backend: "postgres" | "bigquery" | "memory";
 }
 
 export type FinOpsGroupBy =
@@ -103,4 +103,26 @@ export interface CompareResponse {
   schema_version: SchemaVersion;
   left: CompareSide;
   right: CompareSide;
+}
+
+export interface DualPlaygroundRequest {
+  schema_version: SchemaVersion;
+  prompt: string;
+  left_model: string;
+  right_model: string;
+  prompt_version: string;
+}
+
+export interface DualPlaygroundSide {
+  model: string;
+  answer: string;
+  latency_ms: number | null;
+}
+
+export interface DualPlaygroundResponse {
+  schema_version: SchemaVersion;
+  trace_id: string;
+  prompt_version: string;
+  left: DualPlaygroundSide;
+  right: DualPlaygroundSide;
 }

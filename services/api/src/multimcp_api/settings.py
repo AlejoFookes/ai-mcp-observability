@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-StorageBackend = Literal["postgres", "bigquery"]
+StorageBackend = Literal["postgres", "bigquery", "memory"]
 EvalBackend = Literal["postgres", "inline"]
 
 _DEFAULT_DATABASE_URL = "postgresql+asyncpg://multimcp:multimcp@localhost:5432/multimcp"
@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     judge_base_url: str = Field(default="https://api.openai.com/v1", alias="JUDGE_BASE_URL")
     judge_model: str = Field(default="", alias="JUDGE_MODEL")
     judge_api_key: str = Field(default="", alias="JUDGE_API_KEY", repr=False)
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY", repr=False)
+    # Playground defaults to Groq (OpenAI-compatible). Override for OpenAI/Ollama.
+    openai_base_url: str = Field(
+        default="https://api.groq.com/openai/v1", alias="OPENAI_BASE_URL"
+    )
+    playground_default_left: str = Field(
+        default="openai/gpt-oss-20b", alias="PLAYGROUND_LEFT_MODEL"
+    )
+    playground_default_right: str = Field(
+        default="openai/gpt-oss-120b", alias="PLAYGROUND_RIGHT_MODEL"
+    )
     bq_project: str = Field(default="", alias="BQ_PROJECT")
     bq_dataset: str = Field(default="multimcp", alias="BQ_DATASET")
 

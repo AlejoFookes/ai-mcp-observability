@@ -2,6 +2,8 @@ import type {
   ApiErrorBody,
   CompareDimension,
   CompareResponse,
+  DualPlaygroundRequest,
+  DualPlaygroundResponse,
   FinOpsGroupBy,
   FinOpsSummaryResponse,
   HealthResponse,
@@ -49,15 +51,19 @@ async function parseError(response: Response): Promise<ApiErrorBody | null> {
   return null;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const headers = new Headers({ Accept: "application/json" });
+async function apiRequest<T>(
+  path: string,
+  init: RequestInit,
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
   const token = getIngestToken();
   if (token !== null) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(`${apiBase()}${path}`, {
-    method: "GET",
+    ...init,
     headers,
   });
 
@@ -70,6 +76,18 @@ export async function apiGet<T>(path: string): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  return apiRequest<T>(path, { method: "GET" });
+}
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export function fetchHealth(ready = false): Promise<HealthResponse> {
@@ -132,4 +150,10 @@ export function fetchCompare(
       right,
     }),
   );
+}
+
+export function postPlaygroundDual(
+  body: DualPlaygroundRequest,
+): Promise<DualPlaygroundResponse> {
+  return apiPost<DualPlaygroundResponse>("/api/v1/playground/dual", body);
 }

@@ -70,7 +70,24 @@ Apuntá tu cliente MCP al proceso del proxy (stdio) en lugar del servidor direct
 
 ## Desarrollo local (sin Docker)
 
-Requiere [uv](https://docs.astral.sh/uv/) y Node 22+.
+Requiere [uv](https://docs.astral.sh/uv/) y Node 22+. En Windows, si `uv` no está en el PATH:
+
+```powershell
+$uv = "$env:USERPROFILE\.local\bin\uv.exe"
+& $uv sync
+```
+
+API en memoria (sin Postgres ni Docker), útil para probar el dashboard:
+
+```powershell
+$uv = "$env:USERPROFILE\.local\bin\uv.exe"
+$env:INGEST_TOKEN = "dev-token"
+$env:STORAGE_BACKEND = "memory"
+$env:EVAL_BACKEND = "inline"
+& $uv run multimcp-api
+```
+
+En otra terminal: `cd apps/web; npm run dev` → http://127.0.0.1:5173 (proxy a `:8000`). Pegá `dev-token` en el formulario.
 
 ```bash
 uv sync
@@ -78,7 +95,10 @@ uv run ruff check .
 uv run pytest
 
 cd apps/web && npm ci && npm run build
-# Dev UI con proxy a la API: npm run dev  → http://127.0.0.1:5173
 ```
 
 Detalle de imágenes y variables: [`deploy/README.md`](deploy/README.md).
+
+## Demo RAG (side project)
+
+Chat de soporte Acme Shop instrumentado con `wrap_openai` para ejercitar FinOps / Compare / Traces: [`examples/rag-chat/README.md`](examples/rag-chat/README.md).

@@ -4,6 +4,7 @@ import { AppShell } from "./components/AppShell";
 import { ComparePage } from "./pages/ComparePage";
 import { FinOpsPage } from "./pages/FinOpsPage";
 import { LatencyPage } from "./pages/LatencyPage";
+import { PlaygroundPage } from "./pages/PlaygroundPage";
 import { TracesPage } from "./pages/TracesPage";
 
 const queryClient = new QueryClient({
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="latency" element={<LatencyPage />} />
             <Route path="traces" element={<TracesPage />} />
             <Route path="compare" element={<ComparePage />} />
+            <Route path="playground" element={<PlaygroundPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

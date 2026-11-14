@@ -14,7 +14,7 @@ class ApiModel(BaseModel):
 class HealthResponse(ApiModel):
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     status: Literal["ok", "degraded"]
-    storage_backend: Literal["postgres", "bigquery"]
+    storage_backend: Literal["postgres", "bigquery", "memory"]
 
 
 class IngestResponse(ApiModel):

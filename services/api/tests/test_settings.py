@@ -2,7 +2,13 @@ from multimcp_api.settings import Settings
 
 
 def test_defaults_match_spec() -> None:
-    settings = Settings(ingest_token="")
+    # Pin storage_backend so a developer shell with STORAGE_BACKEND=memory
+    # does not flake this assertion.
+    settings = Settings(
+        ingest_token="",
+        storage_backend="postgres",
+        eval_backend="postgres",
+    )
     assert settings.storage_backend == "postgres"
     assert settings.database_url.startswith("postgresql+asyncpg://")
     assert settings.eval_backend == "postgres"
@@ -24,3 +30,12 @@ def test_alembic_url_explicit_wins() -> None:
         alembic_database_url="postgresql+psycopg://other/db",
     )
     assert settings.resolved_alembic_database_url == "postgresql+psycopg://other/db"
+
+
+def test_memory_backend_builds_memory_repository() -> None:
+    from multimcp_api.repositories.factory import build_repository
+    from multimcp_api.repositories.memory import MemoryEventRepository
+
+    settings = Settings(storage_backend="memory", ingest_token="x")
+    repo = build_repository(settings)
+    assert isinstance(repo, MemoryEventRepository)

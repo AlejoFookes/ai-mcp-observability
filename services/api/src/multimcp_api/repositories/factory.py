@@ -10,7 +10,7 @@ from multimcp_api.settings import Settings
 
 def build_repository(settings: Settings, *, memory: bool = False) -> EventRepository:
     """Return the storage adapter. BigQuery is imported only when selected."""
-    if memory:
+    if memory or settings.storage_backend == "memory":
         return MemoryEventRepository()
     if settings.storage_backend == "bigquery":
         if settings.eval_backend != "inline":

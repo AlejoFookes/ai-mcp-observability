@@ -7,6 +7,7 @@ const nav: ReadonlyArray<{ to: string; label: string; end?: boolean }> = [
   { to: "/latency", label: "Latency" },
   { to: "/traces", label: "Traces" },
   { to: "/compare", label: "Compare" },
+  { to: "/playground", label: "Playground" },
 ];
 
 export function AppShell() {
