@@ -9,11 +9,13 @@ resolution-markers = [
 [manifest]
 members = [
     "multimcp",
+    "multimcp-proxy",
 ]
 
 [manifest.dependency-groups]
 dev = [
-    { name = "multimcp", editable = "sdks/python" },
+    { name = "multimcp", extras = ["openai"], editable = "sdks/python" },
+    { name = "multimcp-proxy", editable = "services/proxy" },
     { name = "pytest", specifier = ">=8.3,<10" },
     { name = "ruff", specifier = ">=0.8,<1" },
 ]
@@ -646,6 +648,28 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8,<1" },
 ]
 provides-extras = ["openai", "anthropic", "google", "all", "dev"]
+
+[[package]]
+name = "multimcp-proxy"
+version = "0.1.0"
+source = { editable = "services/proxy" }
+dependencies = [
+    { name = "multimcp" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "multimcp", editable = "sdks/python" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3,<10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8,<1" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "openai"
