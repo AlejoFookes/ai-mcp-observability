@@ -25,6 +25,12 @@ export interface HealthResponse {
   storage_backend: "postgres" | "bigquery";
 }
 
+export type FinOpsGroupBy =
+  | "model"
+  | "provider"
+  | "prompt_version"
+  | "mcp_server";
+
 export interface FinOpsRow {
   key: string;
   request_count: number;
@@ -41,6 +47,8 @@ export interface FinOpsSummaryResponse {
   rows: FinOpsRow[];
 }
 
+export type LatencyGroupBy = "model" | "operation" | "mcp_tool";
+
 export interface LatencyRow {
   key: string;
   count: number;
@@ -52,6 +60,11 @@ export interface LatencyRow {
 export interface LatencyResponse {
   schema_version: SchemaVersion;
   rows: LatencyRow[];
+}
+
+export interface WindowParams {
+  from: string;
+  to: string;
 }
 
 export interface TraceSpan {
