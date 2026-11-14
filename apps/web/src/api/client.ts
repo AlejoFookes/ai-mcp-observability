@@ -1,10 +1,13 @@
 import type {
   ApiErrorBody,
+  CompareDimension,
+  CompareResponse,
   FinOpsGroupBy,
   FinOpsSummaryResponse,
   HealthResponse,
   LatencyGroupBy,
   LatencyResponse,
+  TraceResponse,
   WindowParams,
 } from "./types";
 import { getIngestToken } from "./token";
@@ -108,5 +111,25 @@ export function fetchLatency(
 ): Promise<LatencyResponse> {
   return apiGet<LatencyResponse>(
     withWindow("/api/v1/latency", window, { group_by: groupBy }),
+  );
+}
+
+export function fetchTrace(traceId: string): Promise<TraceResponse> {
+  const encoded = encodeURIComponent(traceId);
+  return apiGet<TraceResponse>(`/api/v1/traces/${encoded}`);
+}
+
+export function fetchCompare(
+  window: WindowParams,
+  dimension: CompareDimension,
+  left: string,
+  right: string,
+): Promise<CompareResponse> {
+  return apiGet<CompareResponse>(
+    withWindow("/api/v1/compare", window, {
+      dimension,
+      left,
+      right,
+    }),
   );
 }

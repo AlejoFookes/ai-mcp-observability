@@ -18,6 +18,12 @@ function errorMessage(error: unknown): { title: string; detail: string } {
           "Save a valid ingest token above, then reload this view. The API rejected the Bearer credential.",
       };
     }
+    if (error.status === 404) {
+      return {
+        title: "Not found (404)",
+        detail: error.message,
+      };
+    }
     return {
       title: `Request failed (${error.status})`,
       detail: error.message,

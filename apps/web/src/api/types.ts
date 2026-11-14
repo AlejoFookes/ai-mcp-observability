@@ -97,6 +97,8 @@ export interface CompareSide {
   error_rate: number;
 }
 
+export type CompareDimension = "prompt_version" | "model";
+
 export interface CompareResponse {
   schema_version: SchemaVersion;
   left: CompareSide;
