@@ -35,17 +35,22 @@ async def test_post_with_wrong_bearer_is_401(app) -> None:
 
 @pytest.mark.asyncio
 async def test_post_with_valid_bearer_succeeds(app) -> None:
+    from factories import make_genai
+
+    event = make_genai()
+    body = {"schema_version": "1.0", "events": [event.model_dump(mode="json")]}
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/api/v1/events",
+            json=body,
             headers={"Authorization": "Bearer test-token"},
         )
 
     assert response.status_code == 200
     assert response.json() == {
         "schema_version": "1.0",
-        "accepted": 0,
+        "accepted": 1,
         "duplicates": 0,
     }
 
