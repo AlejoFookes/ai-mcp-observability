@@ -57,7 +57,12 @@ async def test_post_with_valid_bearer_succeeds(app) -> None:
 
 @pytest.mark.asyncio
 async def test_empty_ingest_token_rejects_all_posts() -> None:
-    app = create_app(settings=Settings(ingest_token=""))
+    from multimcp_api.repositories.memory import MemoryEventRepository
+
+    app = create_app(
+        settings=Settings(ingest_token=""),
+        repository=MemoryEventRepository(),
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(

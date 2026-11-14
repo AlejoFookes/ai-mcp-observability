@@ -2,7 +2,7 @@
 
 Plataforma portable de observabilidad, FinOps y evaluación para pipelines de IA generativa, SDKs y servidores [MCP](https://modelcontextprotocol.io/specification/2026-07-28).
 
-Este repositorio está en la fase de especificación. El código de la plataforma arranca después de aprobar [`SPEC.md`](SPEC.md). El orden de construcción está en [`ROADMAP.md`](ROADMAP.md).
+Fuente de verdad: [`SPEC.md`](SPEC.md). Orden de construcción: [`ROADMAP.md`](ROADMAP.md).
 
 | Paquete | Ruta | Rol |
 | --- | --- | --- |
@@ -22,3 +22,12 @@ uv sync
 uv run ruff check .
 uv run pytest
 ```
+
+## Compose (API + worker + Postgres)
+
+```bash
+cp .env.example .env   # set INGEST_TOKEN
+docker compose -f deploy/compose.yaml up --build
+```
+
+Health: `GET http://127.0.0.1:8000/api/v1/health?ready=true` → 200 cuando Postgres acepta conexiones. El proxy MCP no va en Compose; corre al lado del servidor del usuario (`multimcp-proxy stdio ...`).

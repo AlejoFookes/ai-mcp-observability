@@ -6,12 +6,16 @@ from fastapi import APIRouter
 
 from multimcp_api.errors import AppError
 from multimcp_api.main import create_app
+from multimcp_api.repositories.memory import MemoryEventRepository
 from multimcp_api.settings import Settings
 
 
 @pytest.mark.asyncio
 async def test_unhandled_exception_has_no_traceback() -> None:
-    app = create_app(settings=Settings(ingest_token="t"))
+    app = create_app(
+        settings=Settings(ingest_token="t"),
+        repository=MemoryEventRepository(),
+    )
 
     boom = APIRouter()
 
@@ -34,7 +38,10 @@ async def test_unhandled_exception_has_no_traceback() -> None:
 
 @pytest.mark.asyncio
 async def test_app_error_envelope() -> None:
-    app = create_app(settings=Settings(ingest_token="t"))
+    app = create_app(
+        settings=Settings(ingest_token="t"),
+        repository=MemoryEventRepository(),
+    )
     router = APIRouter()
 
     @router.get("/gone")

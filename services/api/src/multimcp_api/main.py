@@ -9,7 +9,7 @@ from multimcp_api.api.v1 import api_v1_router
 from multimcp_api.errors import install_exception_handlers
 from multimcp_api.health import HealthProbe, RepositoryHealthProbe
 from multimcp_api.repositories.base import EventRepository
-from multimcp_api.repositories.memory import MemoryEventRepository
+from multimcp_api.repositories.factory import build_repository
 from multimcp_api.settings import Settings, get_settings
 
 
@@ -20,7 +20,7 @@ def create_app(
     repository: EventRepository | None = None,
 ) -> FastAPI:
     resolved = settings or get_settings()
-    repo = repository or MemoryEventRepository()
+    repo = repository if repository is not None else build_repository(resolved)
     app = FastAPI(title="multimcp-api", version="0.1.0")
     app.state.settings = resolved
     app.state.repository = repo
