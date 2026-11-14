@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router";
 import { TokenForm } from "./TokenForm";
 
@@ -9,6 +10,8 @@ const nav: ReadonlyArray<{ to: string; label: string; end?: boolean }> = [
 ];
 
 export function AppShell() {
+  const queryClient = useQueryClient();
+
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-8">
       <header className="flex flex-col gap-6">
@@ -21,7 +24,11 @@ export function AppShell() {
             FinOps, latency, traces and prompt/model compare against the local API.
           </p>
         </div>
-        <TokenForm />
+        <TokenForm
+          onChange={() => {
+            void queryClient.invalidateQueries();
+          }}
+        />
         <nav className="flex flex-wrap gap-2">
           {nav.map((item) => (
             <NavLink

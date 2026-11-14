@@ -1,4 +1,12 @@
-import type { ApiErrorBody, HealthResponse } from "./types";
+import type {
+  ApiErrorBody,
+  FinOpsGroupBy,
+  FinOpsSummaryResponse,
+  HealthResponse,
+  LatencyGroupBy,
+  LatencyResponse,
+  WindowParams,
+} from "./types";
 import { getIngestToken } from "./token";
 
 export class ApiClientError extends Error {
@@ -64,4 +72,41 @@ export async function apiGet<T>(path: string): Promise<T> {
 export function fetchHealth(ready = false): Promise<HealthResponse> {
   const query = ready ? "?ready=true" : "";
   return apiGet<HealthResponse>(`/api/v1/health${query}`);
+}
+
+function withWindow(
+  path: string,
+  window: WindowParams,
+  extra: Record<string, string | boolean>,
+): string {
+  const params = new URLSearchParams({
+    from: window.from,
+    to: window.to,
+  });
+  for (const [key, value] of Object.entries(extra)) {
+    params.set(key, String(value));
+  }
+  return `${path}?${params.toString()}`;
+}
+
+export function fetchFinOpsSummary(
+  window: WindowParams,
+  groupBy: FinOpsGroupBy,
+  includeJudge: boolean,
+): Promise<FinOpsSummaryResponse> {
+  return apiGet<FinOpsSummaryResponse>(
+    withWindow("/api/v1/finops/summary", window, {
+      group_by: groupBy,
+      include_judge: includeJudge,
+    }),
+  );
+}
+
+export function fetchLatency(
+  window: WindowParams,
+  groupBy: LatencyGroupBy,
+): Promise<LatencyResponse> {
+  return apiGet<LatencyResponse>(
+    withWindow("/api/v1/latency", window, { group_by: groupBy }),
+  );
 }

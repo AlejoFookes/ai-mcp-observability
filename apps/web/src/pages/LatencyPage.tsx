@@ -1,40 +1,153 @@
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { PlaceholderPage } from "./PlaceholderPage";
+import { fetchLatency } from "../api/client";
+import type { LatencyGroupBy } from "../api/types";
+import { QueryStatus } from "../components/QueryStatus";
+import { WindowFilters } from "../components/WindowFilters";
+import { useQueryWindow } from "../hooks/useQueryWindow";
+import { formatMs, formatPercent } from "../lib/window";
 
-const sample = [
-  { label: "p50", ms: 0 },
-  { label: "p95", ms: 0 },
-] as const;
+const GROUP_OPTIONS: ReadonlyArray<{ value: LatencyGroupBy; label: string }> = [
+  { value: "model", label: "Model" },
+  { value: "operation", label: "Operation" },
+  { value: "mcp_tool", label: "MCP tool" },
+];
 
 export function LatencyPage() {
+  const { fromInput, toInput, setFromInput, setToInput, window, windowError } =
+    useQueryWindow();
+  const [groupBy, setGroupBy] = useState<LatencyGroupBy>("model");
+
+  const query = useQuery({
+    queryKey: ["latency", groupBy, window?.from, window?.to],
+    queryFn: () => {
+      if (window === null) {
+        throw new Error("Window required");
+      }
+      return fetchLatency(window, groupBy);
+    },
+    enabled: window !== null,
+  });
+
+  const rows = query.data?.rows ?? [];
+  const chartData = rows.map((row) => ({
+    key: row.key,
+    p50_ms: row.p50_ms,
+    p95_ms: row.p95_ms,
+  }));
+
   return (
-    <div className="flex flex-col gap-6">
-      <PlaceholderPage
-        title="Latency"
-        summary="p50, p95 and error_rate by model, operation and MCP tool."
-      />
-      <div className="h-48 rounded border border-[var(--line)] bg-[var(--panel)] p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)]">
-          Recharts ready
+    <div className="flex flex-col gap-8">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight">Latency</h2>
+        <p className="mt-1 max-w-2xl text-[var(--muted)]">
+          p50, p95 and error_rate by model, operation or MCP tool. Percentiles
+          include failed calls.
         </p>
-        <ResponsiveContainer width="100%" height="85%">
-          <LineChart data={[...sample]}>
-            <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
-            <XAxis dataKey="label" />
-            <YAxis unit="ms" />
-            <Tooltip />
-            <Line type="monotone" dataKey="ms" stroke="var(--accent)" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
       </div>
+
+      <WindowFilters
+        from={fromInput}
+        to={toInput}
+        onFromChange={setFromInput}
+        onToChange={setToInput}
+      >
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[var(--muted)]">Group by</span>
+          <select
+            value={groupBy}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (
+                next === "model" ||
+                next === "operation" ||
+                next === "mcp_tool"
+              ) {
+                setGroupBy(next);
+              }
+            }}
+            className="rounded border border-[var(--line)] bg-[var(--panel)] px-3 py-2"
+          >
+            {GROUP_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </WindowFilters>
+
+      {windowError !== null ? (
+        <p role="alert" className="text-sm text-red-800">
+          {windowError}
+        </p>
+      ) : null}
+
+      <QueryStatus
+        isPending={query.isPending}
+        error={query.error}
+        isEmpty={rows.length === 0}
+        emptyMessage="No latency samples in this window for this grouping."
+      >
+        <div className="h-64 rounded border border-[var(--line)] bg-[var(--panel)] p-3">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+              <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="key"
+                tick={{ fontSize: 11 }}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={48}
+              />
+              <YAxis unit="ms" tick={{ fontSize: 11 }} width={56} />
+              <Tooltip formatter={(value) => formatMs(Number(value ?? 0))} />
+              <Legend />
+              <Bar dataKey="p50_ms" fill="var(--accent)" name="p50" />
+              <Bar dataKey="p95_ms" fill="#3d7a6c" name="p95" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="overflow-x-auto rounded border border-[var(--line)] bg-[var(--panel)]">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-[var(--line)] text-[var(--muted)]">
+              <tr>
+                <th className="px-3 py-2 font-medium">Key</th>
+                <th className="px-3 py-2 font-medium">Count</th>
+                <th className="px-3 py-2 font-medium">p50</th>
+                <th className="px-3 py-2 font-medium">p95</th>
+                <th className="px-3 py-2 font-medium">Error rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.key}
+                  className="border-b border-[var(--line)] last:border-0"
+                >
+                  <td className="px-3 py-2 font-medium">{row.key}</td>
+                  <td className="px-3 py-2">{row.count}</td>
+                  <td className="px-3 py-2">{formatMs(row.p50_ms)}</td>
+                  <td className="px-3 py-2">{formatMs(row.p95_ms)}</td>
+                  <td className="px-3 py-2">{formatPercent(row.error_rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </QueryStatus>
     </div>
   );
 }
