@@ -288,31 +288,42 @@ Archivo: `sdks/python/src/multimcp/pricing/catalogs/2026-11-01.json`.
     {
       "provider": "openai",
       "model": "gpt-5.5",
-      "input_per_million": "0",
-      "output_per_million": "0",
-      "cache_read_per_million": null,
-      "reasoning_per_million": null,
-      "source_url": "https://platform.openai.com/docs/pricing",
-      "effective_from": "2026-11-01"
+      "input_per_million": "5.00",
+      "output_per_million": "30.00",
+      "cache_read_per_million": "0.50",
+      "max_input_tokens": 272000,
+      "source_url": "https://developers.openai.com/api/docs/pricing",
+      "retrieved_on": "2026-11-14"
     }
   ]
 }
 ```
 
-Los números del ejemplo son placeholders de forma. El Milestone 1 los carga desde las páginas públicas de precios vigentes en la fecha del catálogo y cita `source_url` por fila. El archivo es dato, no código.
+Cada fila copia la tarifa estándar de la página pública del proveedor y cita `source_url` y la fecha de lectura (`retrieved_on`). El archivo es dato, no código. Los precios son strings: un float JSON invalida el archivo porque no parsea como decimal exacto.
+
+El catálogo `2026-11-01` trae filas de OpenAI y Anthropic. No trae filas de Google: la página de precios de Gemini no se pudo leer al armarlo, y una tarifa sin fuente queda fuera. Los eventos de Gemini salen `unpriced` hasta que un catálogo nuevo cite la página.
+
+`max_input_tokens` marca el techo de una tarifa por tramos (OpenAI ≤272K, Claude Haiku 5.5 ≤100K). Por encima del techo, la llamada queda `unpriced`. No se aplica la tarifa corta a un prompt largo.
 
 Fórmula, con `Decimal` y redondeo `ROUND_HALF_EVEN` a 8 decimales:
 
 ```text
-cost = (input_tokens * input_per_million
-      + output_tokens * output_per_million
+cost = ((input_tokens - cache_read_tokens) * input_per_million
       + cache_read_tokens * cache_read_per_million
-      + reasoning_tokens * reasoning_rate) / 1_000_000
+      + output_tokens * output_per_million) / 1_000_000
 ```
 
-`reasoning_rate` es `reasoning_per_million` si existe; si no, `output_per_million`. Si falta la fila del modelo, o falta una columna para un conteo mayor que cero, `price_status = unpriced` y el costo es null. No se mezcla una estimación parcial con un null silencioso.
+El razonamiento ya está dentro de `output_tokens` y se cobra a tarifa de output en los tres proveedores. La llamada queda `unpriced`, con costo null, cuando:
 
-`currency` distinto de `USD` invalida el archivo al cargarlo.
+- el modelo no tiene fila (el match es exacto; solo se ignora el prefijo `models/` de Google, y un snapshot fechado no hereda la tarifa del alias),
+- faltan `input_tokens` u `output_tokens`, por ejemplo en un stream cortado,
+- `input_tokens` supera `max_input_tokens`,
+- hubo lecturas de caché y la fila no tiene `cache_read_per_million`,
+- hubo escrituras de caché. Ningún catálogo `0.1` tiene columna de escritura, y OpenAI y Anthropic las cobran aparte.
+
+No se mezcla una estimación parcial con un null silencioso. Batch, Fast mode, endpoints regionales e `inference_geo` no se modelan: el costo es el de la tarifa estándar global.
+
+`currency` distinto de `USD` invalida el archivo al cargarlo, igual que un `provider/model` repetido o un `catalog_version` que no coincide con el nombre del archivo.
 
 ## 5. Proxy MCP — `multimcp-proxy`
 
