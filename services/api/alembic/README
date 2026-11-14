@@ -1,0 +1,7 @@
+Alembic migrations for multimcp-api.
+
+```bash
+cd services/api
+export ALEMBIC_DATABASE_URL=postgresql+psycopg://multimcp:multimcp@localhost:5432/multimcp
+uv run alembic upgrade head
+```
