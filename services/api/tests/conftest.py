@@ -4,6 +4,7 @@ import pytest
 
 from multimcp_api.health import AlwaysOkProbe
 from multimcp_api.main import create_app
+from multimcp_api.repositories.memory import MemoryEventRepository
 from multimcp_api.settings import Settings, clear_settings_cache
 
 
@@ -21,4 +22,8 @@ def settings() -> Settings:
 
 @pytest.fixture
 def app(settings: Settings):
-    return create_app(settings=settings, health_probe=AlwaysOkProbe())
+    return create_app(
+        settings=settings,
+        repository=MemoryEventRepository(),
+        health_probe=AlwaysOkProbe(),
+    )

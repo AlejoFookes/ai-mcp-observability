@@ -5,6 +5,7 @@ import pytest
 
 from multimcp_api.health import AlwaysDownProbe
 from multimcp_api.main import create_app
+from multimcp_api.repositories.memory import MemoryEventRepository
 from multimcp_api.settings import Settings
 
 
@@ -27,6 +28,7 @@ async def test_health_ok_without_token(app) -> None:
 async def test_health_degraded_still_200() -> None:
     app = create_app(
         settings=Settings(ingest_token="x"),
+        repository=MemoryEventRepository(),
         health_probe=AlwaysDownProbe(),
     )
     transport = httpx.ASGITransport(app=app)
@@ -41,6 +43,7 @@ async def test_health_degraded_still_200() -> None:
 async def test_health_ready_returns_503_when_storage_down() -> None:
     app = create_app(
         settings=Settings(ingest_token="x"),
+        repository=MemoryEventRepository(),
         health_probe=AlwaysDownProbe(),
     )
     transport = httpx.ASGITransport(app=app)
