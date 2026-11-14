@@ -12,6 +12,9 @@ classifiers = [
 ]
 dependencies = [
     "multimcp",
+    "httpx>=0.28,<1",
+    "starlette>=0.41,<1",
+    "uvicorn>=0.32,<1",
 ]
 
 [project.scripts]

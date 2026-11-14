@@ -7,6 +7,7 @@ import sys
 from collections.abc import Sequence
 
 from multimcp_proxy.stdio import run_stdio_proxy
+from multimcp_proxy.streamable_http import run_http_proxy
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +31,26 @@ def build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Server argv after `--`, e.g. `-- python -m my_mcp_server`.",
     )
+
+    http = sub.add_parser(
+        "http",
+        help="Proxy Streamable HTTP: one POST, JSON or SSE response from upstream.",
+    )
+    http.add_argument(
+        "--server-name",
+        required=True,
+        help="Logical server name written on every McpEvent.",
+    )
+    http.add_argument(
+        "--listen",
+        required=True,
+        help="Bind address HOST:PORT for the proxy listener.",
+    )
+    http.add_argument(
+        "--upstream",
+        required=True,
+        help="Upstream MCP endpoint URL (POST target).",
+    )
     return parser
 
 
@@ -49,6 +70,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not server_command:
             parser.error("stdio requires a server command after `--`")
         return run_stdio_proxy(server_command, server_name=args.server_name)
+
+    if args.command == "http":
+        return run_http_proxy(
+            server_name=args.server_name,
+            listen=args.listen,
+            upstream=args.upstream,
+        )
 
     parser.error(f"unknown command {args.command!r}")
     return 2
