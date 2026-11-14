@@ -56,3 +56,11 @@ export function formatPercent(rate: number): string {
 export function formatMs(ms: number): string {
   return `${ms.toFixed(0)} ms`;
 }
+
+export function formatOccurredAt(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return iso;
+  }
+  return parsed.toLocaleString();
+}
