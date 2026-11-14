@@ -27,16 +27,27 @@ def main() -> int:
             sys.stdout.flush()
             continue
 
-        response = {
-            "jsonrpc": "2.0",
-            "id": message.get("id"),
-            "result": {
-                "echo_method": method,
-                "echo_params": message.get("params"),
-                "echo_meta": message.get("_meta"),
-            },
-        }
-        # Compact JSON so the test can assert the exact forwarded bytes.
+        if method == "die":
+            # Exit without answering: the proxy should emit error_type=transport.
+            return 1
+
+        if method == "return_error":
+            response = {
+                "jsonrpc": "2.0",
+                "id": message.get("id"),
+                "error": {"code": -32602, "message": "invalid params"},
+            }
+        else:
+            response = {
+                "jsonrpc": "2.0",
+                "id": message.get("id"),
+                "result": {
+                    "echo_method": method,
+                    "echo_params": message.get("params"),
+                    "echo_meta": message.get("_meta"),
+                },
+            }
+
         sys.stdout.write(json.dumps(response, separators=(",", ":"), ensure_ascii=False))
         sys.stdout.write("\n")
         sys.stdout.flush()

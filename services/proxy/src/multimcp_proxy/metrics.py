@@ -6,7 +6,7 @@ from multimcp import McpEvent
 from multimcp.config import emit
 from multimcp.context import current_context
 from multimcp.exporters.base import Exporter
-from multimcp.models import Transport
+from multimcp.models import McpErrorType, Status, Transport
 
 
 def emit_framing_error(
@@ -31,5 +31,39 @@ def emit_framing_error(
         error_code=None,
         error_type="framing",
         trace_id=ctx.trace_id,
+    )
+    emit(event, exporter=exporter)
+
+
+def emit_mcp_event(
+    *,
+    server_name: str,
+    transport: Transport,
+    method: str,
+    tool_name: str | None,
+    jsonrpc_id: str | None,
+    latency_ms: float,
+    payload_bytes: int,
+    status: Status,
+    error_type: McpErrorType | None = None,
+    error_code: int | None = None,
+    exporter: Exporter | None = None,
+    trace_id: str | None = None,
+) -> None:
+    """Emit one completed (or failed) JSON-RPC request seen by the proxy."""
+    ctx = current_context()
+    event = McpEvent(
+        environment=ctx.environment,
+        server_name=server_name,
+        transport=transport,
+        method=method,
+        tool_name=tool_name,
+        jsonrpc_id=jsonrpc_id,
+        latency_ms=latency_ms,
+        payload_bytes=payload_bytes,
+        status=status,
+        error_code=error_code,
+        error_type=error_type,
+        trace_id=trace_id or ctx.trace_id,
     )
     emit(event, exporter=exporter)

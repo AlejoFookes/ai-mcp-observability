@@ -12,6 +12,7 @@ from typing import BinaryIO, TextIO
 from multimcp.exporters.base import Exporter
 from multimcp_proxy.framing import encode_line, iter_frames
 from multimcp_proxy.metrics import emit_framing_error
+from multimcp_proxy.tracker import RequestTracker
 
 logger = logging.getLogger("multimcp_proxy.stdio")
 
@@ -29,7 +30,8 @@ def run_stdio_proxy(
 
     Valid JSON lines are forwarded unchanged. Non-JSON lines are dropped, emit a
     framing error event, and never appear on the other end. Child stderr is copied
-    to the proxy stderr and never becomes a tool/framing failure.
+    to the proxy stderr and never becomes a tool/framing failure. Requests with an
+    id emit one McpEvent when the matching response arrives (or transport on exit).
     """
     import subprocess
 
@@ -51,6 +53,11 @@ def run_stdio_proxy(
     assert child.stdout is not None
     assert child.stderr is not None
 
+    tracker = RequestTracker(
+        server_name=server_name,
+        transport="stdio",
+        exporter=exporter,
+    )
     errors: list[BaseException] = []
 
     def pump_client_to_server() -> None:
@@ -64,6 +71,7 @@ def run_stdio_proxy(
                         exporter=exporter,
                     )
                     continue
+                tracker.observe_client_message(frame.text)
                 child.stdin.write(encode_line(frame.text))
                 child.stdin.flush()
         except BaseException as exc:
@@ -84,6 +92,7 @@ def run_stdio_proxy(
                         exporter=exporter,
                     )
                     continue
+                tracker.observe_server_message(frame.text)
                 stdout_dst.write(encode_line(frame.text))
                 stdout_dst.flush()
         except BaseException as exc:
@@ -114,6 +123,7 @@ def run_stdio_proxy(
     for thread in threads:
         thread.join()
 
+    tracker.close_open_as_transport()
     return_code = child.wait()
     if errors:
         logger.error("stdio proxy finished with %s pump error(s)", len(errors))
