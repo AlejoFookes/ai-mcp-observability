@@ -147,6 +147,16 @@ El evento de inferencia y el evento MCP no incluyen prompt, completion ni body d
 
 Ruta: `sdks/python`. Python `>=3.12`. Layout `src`. Build backend `hatchling`.
 
+### 4.0 Gestión de paquetes con uv
+
+`uv` instala, resuelve y ejecuta todo el Python del repo. No se usa `pip` ni `requirements.txt`.
+
+- El `pyproject.toml` de la raíz es un workspace virtual de uv. Sus miembros son los paquetes bajo `sdks/` (y, desde la Fase 2, bajo `services/`).
+- `.python-version` fija 3.12. `uv python install` lo lee.
+- `uv.lock` se commitea. CI corre `uv sync --locked`: un lock desactualizado rompe el build en lugar de resolver otra cosa.
+- El grupo `dev` de la raíz trae `pytest` y `ruff`, e instala los miembros del workspace en modo editable.
+- La configuración de `ruff` y `pytest` vive en la raíz. Los dos comandos de verificación son `uv run ruff check .` y `uv run pytest`.
+
 ### 4.1 Dependencias
 
 | Extra | Paquete | Rango | Uso |
@@ -695,7 +705,7 @@ El servicio `api` publica `8000`. `web` publica `5173` en desarrollo y sirve el 
 
 `.github/workflows/ci.yml`:
 
-- Python 3.12, `ruff check` y `pytest` por cada `pyproject.toml` bajo `sdks/` y `services/`. Hasta que esos paquetes existan, el job termina en verde y lo dice en el log.
+- `astral-sh/setup-uv`, Python desde `.python-version`, `uv sync --locked`, `uv run ruff check .` y `uv run pytest` en la raíz del workspace.
 - Node 22, `npm ci` y `npm run build` cuando exista `apps/web/package.json`.
 - Los tests no llaman a OpenAI, Anthropic, Google ni BigQuery. Los wrappers se prueban con clientes falsos. El HTTP del exporter se prueba con `httpx.MockTransport`. El repositorio Postgres de integración usa un test que se salta si no hay `DATABASE_URL` de test; el default de CI en `0.1` es el repositorio en memoria que implementa el mismo `Protocol`.
 
