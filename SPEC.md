@@ -169,7 +169,11 @@ Ruta: `sdks/python`. Python `>=3.12`. Layout `src`. Build backend `hatchling`.
 | `all` | los tres extras | | |
 | `dev` | `pytest`, `ruff` | | CI |
 
-Los wrappers importan el SDK del proveedor dentro de la función. Si el extra no está instalado, lanzan `MultimcpConfigError` con el nombre del extra. El import de `multimcp` no importa `openai`, `anthropic` ni `google.genai`.
+Los wrappers no importan el SDK del proveedor: reciben la instancia ya construida y reemplazan sus métodos por duck typing. Los extras fijan el rango probado, no son un requisito de import. El import de `multimcp` no importa `openai`, `anthropic` ni `google.genai`.
+
+- Solo se parchea la instancia recibida. Envolver dos veces el mismo cliente no duplica eventos.
+- Un método `async def`, o un método síncrono que devuelve un awaitable, se instrumenta al resolverse el awaitable. Esto cubre los métodos async que el SDK decora con una función síncrona.
+- El wrapper lanza `MultimcpConfigError` solo cuando el cliente está fuera de alcance (Google con `vertexai=True` o `enterprise=True`).
 
 ### 4.2 Superficie pública
 
@@ -194,22 +198,21 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
 
 **OpenAI** (`OpenAI` y `AsyncOpenAI`), guía de la lib 3.51:
 
-- `client.responses.create`. API primaria. Con `stream=True`, TTFT en el primer evento `response.output_text.delta`. Tokens en el evento `response.completed`: `usage.input_tokens`, `usage.output_tokens`.
-- `client.chat.completions.create`. API todavía soportada. `usage.prompt_tokens` → `input_tokens`, `usage.completion_tokens` → `output_tokens`. En stream, el wrapper no fuerza `stream_options`; si el último chunk trae `usage`, lo copia. Si el stream corta antes, los tokens quedan null.
+- `client.responses.create`. API primaria. Con `stream=True`, TTFT en el primer evento `response.output_text.delta`. Tokens en el evento `response.completed`: `usage.input_tokens`, `usage.output_tokens`, `output_tokens_details.reasoning_tokens` → `reasoning_tokens`, `input_tokens_details.cached_tokens` → `cache_read_tokens`, `input_tokens_details.cache_write_tokens` → `cache_write_tokens` cuando existe.
+- `client.chat.completions.create`. API todavía soportada. `usage.prompt_tokens` → `input_tokens`, `usage.completion_tokens` → `output_tokens`, con los mismos detalles de reasoning y cache. En stream, el wrapper no fuerza `stream_options`; si un chunk trae `usage`, lo copia. Si el stream corta antes, los tokens quedan null. TTFT en el primer chunk con `choices[0].delta.content`.
 
 **Anthropic** (`Anthropic` y `AsyncAnthropic`), lib 2.8:
 
-- `client.messages.create`.
-- `client.messages.create(..., stream=True)` y `client.messages.stream(...)`.
-- Tokens: `usage.input_tokens`, `usage.output_tokens`, `usage.cache_read_input_tokens`. `cache_creation_input_tokens` se suma al input facturable solo si el catálogo tiene columna de creación; si no, viaja en `metadata` y el costo de creación queda `unpriced` en esa componente.
-- TTFT en el primer `content_block_delta` (stream crudo) o en el primer evento `text` (helper `stream()`).
+- `client.messages.create`, unario o con `stream=True`. En el stream crudo, `message_start` trae el usage inicial y `message_delta` lo actualiza.
+- `client.messages.stream(...)`. Al salir del context manager se lee `current_message_snapshot.usage`. TTFT en el primer evento `text`, o en el primer elemento de `text_stream`. Si el código solo llama `get_final_message()` sin iterar, TTFT queda null.
+- Anthropic reporta `input_tokens` sin cache. El wrapper normaliza: `input_tokens` = `input_tokens` + `cache_read_input_tokens` + `cache_creation_input_tokens`, `cache_read_tokens` = `cache_read_input_tokens`, `cache_write_tokens` = `cache_creation_input_tokens`. Con `cache_write_tokens > 0` la llamada queda `unpriced` (§4.6).
 
-**Google Gen AI** (`google.genai.Client`), lib 3.3. Se instrumenta el cliente de la Gemini Developer API. El cliente `enterprise=True` (Agent Platform / Vertex) queda fuera de `0.1`.
+**Google Gen AI** (`google.genai.Client`), lib 3.3. Se instrumenta el cliente de la Gemini Developer API. Los clientes `vertexai=True` y `enterprise=True` quedan fuera de `0.1`; `wrap_google` lanza `MultimcpConfigError`.
 
 - `client.models.generate_content` y `client.models.generate_content_stream`.
 - Los mismos métodos en `client.aio.models`.
 - `usage_metadata.prompt_token_count` → `input_tokens`.
-- `usage_metadata.candidates_token_count` → `output_tokens`.
+- `usage_metadata.candidates_token_count` + `thoughts_token_count` → `output_tokens` (§4.4: el output incluye el reasoning).
 - `usage_metadata.thoughts_token_count` → `reasoning_tokens` cuando el atributo existe.
 - `usage_metadata.cached_content_token_count` → `cache_read_tokens`.
 - TTFT en el primer chunk del stream que trae texto.
