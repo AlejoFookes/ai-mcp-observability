@@ -272,9 +272,12 @@ Exporter.insert(events: Sequence[GenAIEvent | McpEvent]) -> None
 ```
 
 - `MemoryExporter` guarda eventos en una lista. Es el default de tests.
-- `HttpExporter` postea a `MULTIMCP_INGEST_URL` (default `http://localhost:8000`) con `Authorization: Bearer $MULTIMCP_INGEST_TOKEN`. Timeout 2 segundos. Un lote tiene como máximo 100 eventos. Si el POST falla, registra el error con el logger `multimcp` y descarta el lote. Hay un buffer en memoria de 1 000 eventos; al llenarse, descarta los más viejos.
+- `HttpExporter` postea a `MULTIMCP_INGEST_URL` (default `http://localhost:8000`) con `Authorization: Bearer $MULTIMCP_INGEST_TOKEN`. Sin token, no manda el header. Timeout 2 segundos. Un lote tiene como máximo 100 eventos. Los `GenAIEvent` van a `/api/v1/events` y los `McpEvent` a `/api/v1/mcp-events`. Si el POST falla, registra el nombre del error con el logger `multimcp` y descarta el lote. Hay un buffer en memoria de 1 000 eventos; al llenarse, descarta los más viejos.
+- `insert` solo encola. Un hilo daemon envía cada segundo, o antes si hay un lote completo. `flush()` envía lo pendiente desde el hilo que llama, y `close()` (registrado en `atexit`) detiene el hilo y drena el buffer.
 
-La telemetría es fail-open. Nunca se reintenta dentro de la llamada del usuario.
+`configure(exporter=...)` fija el exporter del proceso, y `wrap_*(client, exporter=...)` lo pisa para un cliente. Sin `configure`, si `MULTIMCP_INGEST_URL` está seteada se crea un `HttpExporter`; si no, el evento se descarta con un log de nivel debug.
+
+La telemetría es fail-open. Nunca se reintenta, y el hilo del usuario no espera a la red. Una excepción del exporter se registra y no llega al código del usuario.
 
 ### 4.6 Catálogo de precios
 
