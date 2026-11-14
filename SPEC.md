@@ -237,6 +237,7 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
   "output_tokens": 40,
   "reasoning_tokens": 0,
   "cache_read_tokens": 0,
+  "cache_write_tokens": 0,
   "ttft_ms": 180.4,
   "latency_ms": 940.2,
   "estimated_cost_usd": "0.00123400",
@@ -248,11 +249,21 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
 }
 ```
 
+Conteo de tokens, igual para los tres proveedores:
+
+- `input_tokens` es el input total, incluidas las lecturas y escrituras de caché.
+- `output_tokens` es el output facturado total, incluido el razonamiento.
+- `reasoning_tokens`, `cache_read_tokens` y `cache_write_tokens` son desgloses de esos totales. No se suman encima.
+
+Cada wrapper traduce el `usage` del proveedor a esa forma. Anthropic informa las lecturas y escrituras de caché fuera de `input_tokens`, y el wrapper las suma. Google informa `thoughts_token_count` fuera de `candidates_token_count`, y el wrapper lo suma al output.
+
+El evento rechaza campos desconocidos y timestamps sin zona horaria. `estimated_cost_usd` está presente si y solo si `price_status = priced`. `error_type` está presente si y solo si `status = error`.
+
 `provider` es `openai` | `anthropic` | `google`. `status` es `ok` | `error`. `price_status` es `priced` | `unpriced`. `ttft_ms` es null cuando la llamada no es stream. `latency_ms` usa `time.perf_counter` en el proceso del SDK. `estimated_cost_usd` es string decimal en el JSON para no perder precisión; en Python es `decimal.Decimal`.
 
 `error_type` es el nombre de la clase de la excepción (`APIStatusError`, `APITimeoutError`, …). El mensaje de la excepción no se envía: suele contener fragmentos del request.
 
-`metadata` acepta un objeto plano string→escalar, con un máximo de 16 claves y valores de hasta 128 caracteres. El juez escribe `role=judge` y `rubric_version`.
+`metadata` acepta un objeto plano string→escalar, con un máximo de 16 claves de hasta 64 caracteres y valores string de hasta 128 caracteres. El juez escribe `role=judge` y `rubric_version`.
 
 ### 4.5 Exporters
 
@@ -559,6 +570,7 @@ CREATE TABLE genai_events (
     output_tokens       integer,
     reasoning_tokens    integer,
     cache_read_tokens   integer,
+    cache_write_tokens  integer,
     ttft_ms             double precision,
     latency_ms          double precision NOT NULL,
     estimated_cost_usd  numeric(18, 8),

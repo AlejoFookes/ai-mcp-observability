@@ -20,6 +20,9 @@ extend-exclude = ["apps"]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN"]
 ignore = ["ANN401"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["multimcp"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["ANN"]
 
