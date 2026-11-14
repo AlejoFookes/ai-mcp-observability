@@ -1,0 +1,31 @@
+[tool.uv.workspace]
+members = ["sdks/*"]
+
+[dependency-groups]
+dev = [
+    "multimcp",
+    "pytest>=8.3,<10",
+    "ruff>=0.8,<1",
+]
+
+[tool.uv.sources]
+multimcp = { workspace = true }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["apps"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["multimcp"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["ANN"]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "-ra"]
+testpaths = ["sdks"]

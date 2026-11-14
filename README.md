@@ -11,4 +11,14 @@ Este repositorio está en la fase de especificación. El código de la plataform
 | `multimcp-api` | `services/api` | Ingesta, consultas y evaluador RAG |
 | `@multimcp/web` | `apps/web` | Dashboard FinOps, latencia, trazas y comparación |
 
-Licencia prevista: MIT. El archivo `LICENSE` se agrega al abrir el Milestone 1.
+Licencia: [MIT](LICENSE).
+
+## Desarrollo
+
+Requiere [uv](https://docs.astral.sh/uv/). Desde la raíz:
+
+```bash
+uv sync
+uv run ruff check .
+uv run pytest
+```

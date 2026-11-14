@@ -147,6 +147,16 @@ El evento de inferencia y el evento MCP no incluyen prompt, completion ni body d
 
 Ruta: `sdks/python`. Python `>=3.12`. Layout `src`. Build backend `hatchling`.
 
+### 4.0 Gestión de paquetes con uv
+
+`uv` instala, resuelve y ejecuta todo el Python del repo. No se usa `pip` ni `requirements.txt`.
+
+- El `pyproject.toml` de la raíz es un workspace virtual de uv. Sus miembros son los paquetes bajo `sdks/` (y, desde la Fase 2, bajo `services/`).
+- `.python-version` fija 3.12. `uv python install` lo lee.
+- `uv.lock` se commitea. CI corre `uv sync --locked`: un lock desactualizado rompe el build en lugar de resolver otra cosa.
+- El grupo `dev` de la raíz trae `pytest` y `ruff`, e instala los miembros del workspace en modo editable.
+- La configuración de `ruff` y `pytest` vive en la raíz. Los dos comandos de verificación son `uv run ruff check .` y `uv run pytest`.
+
 ### 4.1 Dependencias
 
 | Extra | Paquete | Rango | Uso |
@@ -159,7 +169,11 @@ Ruta: `sdks/python`. Python `>=3.12`. Layout `src`. Build backend `hatchling`.
 | `all` | los tres extras | | |
 | `dev` | `pytest`, `ruff` | | CI |
 
-Los wrappers importan el SDK del proveedor dentro de la función. Si el extra no está instalado, lanzan `MultimcpConfigError` con el nombre del extra. El import de `multimcp` no importa `openai`, `anthropic` ni `google.genai`.
+Los wrappers no importan el SDK del proveedor: reciben la instancia ya construida y reemplazan sus métodos por duck typing. Los extras fijan el rango probado, no son un requisito de import. El import de `multimcp` no importa `openai`, `anthropic` ni `google.genai`.
+
+- Solo se parchea la instancia recibida. Envolver dos veces el mismo cliente no duplica eventos.
+- Un método `async def`, o un método síncrono que devuelve un awaitable, se instrumenta al resolverse el awaitable. Esto cubre los métodos async que el SDK decora con una función síncrona.
+- El wrapper lanza `MultimcpConfigError` solo cuando el cliente está fuera de alcance (Google con `vertexai=True` o `enterprise=True`).
 
 ### 4.2 Superficie pública
 
@@ -184,22 +198,21 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
 
 **OpenAI** (`OpenAI` y `AsyncOpenAI`), guía de la lib 3.51:
 
-- `client.responses.create`. API primaria. Con `stream=True`, TTFT en el primer evento `response.output_text.delta`. Tokens en el evento `response.completed`: `usage.input_tokens`, `usage.output_tokens`.
-- `client.chat.completions.create`. API todavía soportada. `usage.prompt_tokens` → `input_tokens`, `usage.completion_tokens` → `output_tokens`. En stream, el wrapper no fuerza `stream_options`; si el último chunk trae `usage`, lo copia. Si el stream corta antes, los tokens quedan null.
+- `client.responses.create`. API primaria. Con `stream=True`, TTFT en el primer evento `response.output_text.delta`. Tokens en el evento `response.completed`: `usage.input_tokens`, `usage.output_tokens`, `output_tokens_details.reasoning_tokens` → `reasoning_tokens`, `input_tokens_details.cached_tokens` → `cache_read_tokens`, `input_tokens_details.cache_write_tokens` → `cache_write_tokens` cuando existe.
+- `client.chat.completions.create`. API todavía soportada. `usage.prompt_tokens` → `input_tokens`, `usage.completion_tokens` → `output_tokens`, con los mismos detalles de reasoning y cache. En stream, el wrapper no fuerza `stream_options`; si un chunk trae `usage`, lo copia. Si el stream corta antes, los tokens quedan null. TTFT en el primer chunk con `choices[0].delta.content`.
 
 **Anthropic** (`Anthropic` y `AsyncAnthropic`), lib 2.8:
 
-- `client.messages.create`.
-- `client.messages.create(..., stream=True)` y `client.messages.stream(...)`.
-- Tokens: `usage.input_tokens`, `usage.output_tokens`, `usage.cache_read_input_tokens`. `cache_creation_input_tokens` se suma al input facturable solo si el catálogo tiene columna de creación; si no, viaja en `metadata` y el costo de creación queda `unpriced` en esa componente.
-- TTFT en el primer `content_block_delta` (stream crudo) o en el primer evento `text` (helper `stream()`).
+- `client.messages.create`, unario o con `stream=True`. En el stream crudo, `message_start` trae el usage inicial y `message_delta` lo actualiza.
+- `client.messages.stream(...)`. Al salir del context manager se lee `current_message_snapshot.usage`. TTFT en el primer evento `text`, o en el primer elemento de `text_stream`. Si el código solo llama `get_final_message()` sin iterar, TTFT queda null.
+- Anthropic reporta `input_tokens` sin cache. El wrapper normaliza: `input_tokens` = `input_tokens` + `cache_read_input_tokens` + `cache_creation_input_tokens`, `cache_read_tokens` = `cache_read_input_tokens`, `cache_write_tokens` = `cache_creation_input_tokens`. Con `cache_write_tokens > 0` la llamada queda `unpriced` (§4.6).
 
-**Google Gen AI** (`google.genai.Client`), lib 3.3. Se instrumenta el cliente de la Gemini Developer API. El cliente `enterprise=True` (Agent Platform / Vertex) queda fuera de `0.1`.
+**Google Gen AI** (`google.genai.Client`), lib 3.3. Se instrumenta el cliente de la Gemini Developer API. Los clientes `vertexai=True` y `enterprise=True` quedan fuera de `0.1`; `wrap_google` lanza `MultimcpConfigError`.
 
 - `client.models.generate_content` y `client.models.generate_content_stream`.
 - Los mismos métodos en `client.aio.models`.
 - `usage_metadata.prompt_token_count` → `input_tokens`.
-- `usage_metadata.candidates_token_count` → `output_tokens`.
+- `usage_metadata.candidates_token_count` + `thoughts_token_count` → `output_tokens` (§4.4: el output incluye el reasoning).
 - `usage_metadata.thoughts_token_count` → `reasoning_tokens` cuando el atributo existe.
 - `usage_metadata.cached_content_token_count` → `cache_read_tokens`.
 - TTFT en el primer chunk del stream que trae texto.
@@ -227,6 +240,7 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
   "output_tokens": 40,
   "reasoning_tokens": 0,
   "cache_read_tokens": 0,
+  "cache_write_tokens": 0,
   "ttft_ms": 180.4,
   "latency_ms": 940.2,
   "estimated_cost_usd": "0.00123400",
@@ -238,11 +252,21 @@ with prompt_context(prompt_version="checkout-v3", environment="staging", trace_i
 }
 ```
 
+Conteo de tokens, igual para los tres proveedores:
+
+- `input_tokens` es el input total, incluidas las lecturas y escrituras de caché.
+- `output_tokens` es el output facturado total, incluido el razonamiento.
+- `reasoning_tokens`, `cache_read_tokens` y `cache_write_tokens` son desgloses de esos totales. No se suman encima.
+
+Cada wrapper traduce el `usage` del proveedor a esa forma. Anthropic informa las lecturas y escrituras de caché fuera de `input_tokens`, y el wrapper las suma. Google informa `thoughts_token_count` fuera de `candidates_token_count`, y el wrapper lo suma al output.
+
+El evento rechaza campos desconocidos y timestamps sin zona horaria. `estimated_cost_usd` está presente si y solo si `price_status = priced`. `error_type` está presente si y solo si `status = error`.
+
 `provider` es `openai` | `anthropic` | `google`. `status` es `ok` | `error`. `price_status` es `priced` | `unpriced`. `ttft_ms` es null cuando la llamada no es stream. `latency_ms` usa `time.perf_counter` en el proceso del SDK. `estimated_cost_usd` es string decimal en el JSON para no perder precisión; en Python es `decimal.Decimal`.
 
 `error_type` es el nombre de la clase de la excepción (`APIStatusError`, `APITimeoutError`, …). El mensaje de la excepción no se envía: suele contener fragmentos del request.
 
-`metadata` acepta un objeto plano string→escalar, con un máximo de 16 claves y valores de hasta 128 caracteres. El juez escribe `role=judge` y `rubric_version`.
+`metadata` acepta un objeto plano string→escalar, con un máximo de 16 claves de hasta 64 caracteres y valores string de hasta 128 caracteres. El juez escribe `role=judge` y `rubric_version`.
 
 ### 4.5 Exporters
 
@@ -251,9 +275,12 @@ Exporter.insert(events: Sequence[GenAIEvent | McpEvent]) -> None
 ```
 
 - `MemoryExporter` guarda eventos en una lista. Es el default de tests.
-- `HttpExporter` postea a `MULTIMCP_INGEST_URL` (default `http://localhost:8000`) con `Authorization: Bearer $MULTIMCP_INGEST_TOKEN`. Timeout 2 segundos. Un lote tiene como máximo 100 eventos. Si el POST falla, registra el error con el logger `multimcp` y descarta el lote. Hay un buffer en memoria de 1 000 eventos; al llenarse, descarta los más viejos.
+- `HttpExporter` postea a `MULTIMCP_INGEST_URL` (default `http://localhost:8000`) con `Authorization: Bearer $MULTIMCP_INGEST_TOKEN`. Sin token, no manda el header. Timeout 2 segundos. Un lote tiene como máximo 100 eventos. Los `GenAIEvent` van a `/api/v1/events` y los `McpEvent` a `/api/v1/mcp-events`. Si el POST falla, registra el nombre del error con el logger `multimcp` y descarta el lote. Hay un buffer en memoria de 1 000 eventos; al llenarse, descarta los más viejos.
+- `insert` solo encola. Un hilo daemon envía cada segundo, o antes si hay un lote completo. `flush()` envía lo pendiente desde el hilo que llama, y `close()` (registrado en `atexit`) detiene el hilo y drena el buffer.
 
-La telemetría es fail-open. Nunca se reintenta dentro de la llamada del usuario.
+`configure(exporter=...)` fija el exporter del proceso, y `wrap_*(client, exporter=...)` lo pisa para un cliente. Sin `configure`, si `MULTIMCP_INGEST_URL` está seteada se crea un `HttpExporter`; si no, el evento se descarta con un log de nivel debug.
+
+La telemetría es fail-open. Nunca se reintenta, y el hilo del usuario no espera a la red. Una excepción del exporter se registra y no llega al código del usuario.
 
 ### 4.6 Catálogo de precios
 
@@ -267,31 +294,42 @@ Archivo: `sdks/python/src/multimcp/pricing/catalogs/2026-11-01.json`.
     {
       "provider": "openai",
       "model": "gpt-5.5",
-      "input_per_million": "0",
-      "output_per_million": "0",
-      "cache_read_per_million": null,
-      "reasoning_per_million": null,
-      "source_url": "https://platform.openai.com/docs/pricing",
-      "effective_from": "2026-11-01"
+      "input_per_million": "5.00",
+      "output_per_million": "30.00",
+      "cache_read_per_million": "0.50",
+      "max_input_tokens": 272000,
+      "source_url": "https://developers.openai.com/api/docs/pricing",
+      "retrieved_on": "2026-11-14"
     }
   ]
 }
 ```
 
-Los números del ejemplo son placeholders de forma. El Milestone 1 los carga desde las páginas públicas de precios vigentes en la fecha del catálogo y cita `source_url` por fila. El archivo es dato, no código.
+Cada fila copia la tarifa estándar de la página pública del proveedor y cita `source_url` y la fecha de lectura (`retrieved_on`). El archivo es dato, no código. Los precios son strings: un float JSON invalida el archivo porque no parsea como decimal exacto.
+
+El catálogo `2026-11-01` trae filas de OpenAI y Anthropic. No trae filas de Google: la página de precios de Gemini no se pudo leer al armarlo, y una tarifa sin fuente queda fuera. Los eventos de Gemini salen `unpriced` hasta que un catálogo nuevo cite la página.
+
+`max_input_tokens` marca el techo de una tarifa por tramos (OpenAI ≤272K, Claude Haiku 5.5 ≤100K). Por encima del techo, la llamada queda `unpriced`. No se aplica la tarifa corta a un prompt largo.
 
 Fórmula, con `Decimal` y redondeo `ROUND_HALF_EVEN` a 8 decimales:
 
 ```text
-cost = (input_tokens * input_per_million
-      + output_tokens * output_per_million
+cost = ((input_tokens - cache_read_tokens) * input_per_million
       + cache_read_tokens * cache_read_per_million
-      + reasoning_tokens * reasoning_rate) / 1_000_000
+      + output_tokens * output_per_million) / 1_000_000
 ```
 
-`reasoning_rate` es `reasoning_per_million` si existe; si no, `output_per_million`. Si falta la fila del modelo, o falta una columna para un conteo mayor que cero, `price_status = unpriced` y el costo es null. No se mezcla una estimación parcial con un null silencioso.
+El razonamiento ya está dentro de `output_tokens` y se cobra a tarifa de output en los tres proveedores. La llamada queda `unpriced`, con costo null, cuando:
 
-`currency` distinto de `USD` invalida el archivo al cargarlo.
+- el modelo no tiene fila (el match es exacto; solo se ignora el prefijo `models/` de Google, y un snapshot fechado no hereda la tarifa del alias),
+- faltan `input_tokens` u `output_tokens`, por ejemplo en un stream cortado,
+- `input_tokens` supera `max_input_tokens`,
+- hubo lecturas de caché y la fila no tiene `cache_read_per_million`,
+- hubo escrituras de caché. Ningún catálogo `0.1` tiene columna de escritura, y OpenAI y Anthropic las cobran aparte.
+
+No se mezcla una estimación parcial con un null silencioso. Batch, Fast mode, endpoints regionales e `inference_geo` no se modelan: el costo es el de la tarifa estándar global.
+
+`currency` distinto de `USD` invalida el archivo al cargarlo, igual que un `provider/model` repetido o un `catalog_version` que no coincide con el nombre del archivo.
 
 ## 5. Proxy MCP — `multimcp-proxy`
 
@@ -549,6 +587,7 @@ CREATE TABLE genai_events (
     output_tokens       integer,
     reasoning_tokens    integer,
     cache_read_tokens   integer,
+    cache_write_tokens  integer,
     ttft_ms             double precision,
     latency_ms          double precision NOT NULL,
     estimated_cost_usd  numeric(18, 8),
@@ -695,7 +734,7 @@ El servicio `api` publica `8000`. `web` publica `5173` en desarrollo y sirve el 
 
 `.github/workflows/ci.yml`:
 
-- Python 3.12, `ruff check` y `pytest` por cada `pyproject.toml` bajo `sdks/` y `services/`. Hasta que esos paquetes existan, el job termina en verde y lo dice en el log.
+- `astral-sh/setup-uv`, Python desde `.python-version`, `uv sync --locked`, `uv run ruff check .` y `uv run pytest` en la raíz del workspace.
 - Node 22, `npm ci` y `npm run build` cuando exista `apps/web/package.json`.
 - Los tests no llaman a OpenAI, Anthropic, Google ni BigQuery. Los wrappers se prueban con clientes falsos. El HTTP del exporter se prueba con `httpx.MockTransport`. El repositorio Postgres de integración usa un test que se salta si no hay `DATABASE_URL` de test; el default de CI en `0.1` es el repositorio en memoria que implementa el mismo `Protocol`.
 
