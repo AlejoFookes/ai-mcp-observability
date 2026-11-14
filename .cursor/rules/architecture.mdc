@@ -1,0 +1,64 @@
+---
+description: Tipado, errores, secretos, versionado y layout del monorepo multiMCP
+alwaysApply: true
+---
+
+# Arquitectura multiMCP
+
+Leé `SPEC.md` antes de implementar. El código de un milestone no arranca si el anterior no está verde. La telemetría observa la llamada: no cambia su resultado.
+
+## Layout
+
+- `sdks/python` — paquete `multimcp` (SemVer, nace en `0.1.0`).
+- `services/proxy` — paquete `multimcp-proxy`.
+- `services/api` — paquete `multimcp-api`.
+- `apps/web` — dashboard Vite + React + TypeScript.
+- `deploy/` — Compose y Dockerfiles.
+- Routers y componentes no contienen SQL, precios ni reglas de evaluación. Eso vive en dominio o en un `Protocol`.
+
+## Tipado
+
+- Python 3.12. Toda función pública lleva anotaciones. Pydantic v2 para contratos.
+- `Any` solo en el borde de un SDK externo, aislado dentro del wrapper.
+- Cada request y response de `/api/v1` incluye `schema_version`.
+- TypeScript con `strict` y `noUncheckedIndexedAccess`. Usá `unknown` y narrowing. Prohibido `any`.
+
+## Errores
+
+```python
+# MAL — traga el fallo del usuario o de la telemetría
+try:
+    return client.responses.create(**kwargs)
+except Exception:
+    pass
+
+# BIEN — registra, y la excepción original sigue su camino
+try:
+    return client.responses.create(**kwargs)
+except Exception as exc:
+    emit_error(exc)
+    raise
+```
+
+- Un fallo del exporter se registra y se descarta. La llamada al modelo sigue.
+- La API responde con el sobre de error de `SPEC.md`. Sin tracebacks ni secretos en el body.
+- Prohibido `except Exception: pass` y un `catch` vacío.
+
+## Secretos
+
+- Claves, connection strings y project ids salen de variables de entorno.
+- `.env` no se commitea. `.env.example` lleva nombres y valores vacíos.
+- El almacén guarda tokens, latencia, costo y bytes. El texto del prompt entra solo por `POST /api/v1/evaluations`.
+
+```python
+# MAL
+client = OpenAI(api_key="sk-...")
+# BIEN
+client = OpenAI()  # lee OPENAI_API_KEY del entorno
+```
+
+## Versionado
+
+- SemVer por paquete. `schema_version` del contrato y `catalog_version` del precio son independientes.
+- Un modelo ausente en el catálogo deja `estimated_cost_usd` en null y `price_status` en `unpriced`. No inventes tarifas.
+- El proxy habla MCP revisión `2026-07-28` y reenvía cada mensaje sin modificarlo.

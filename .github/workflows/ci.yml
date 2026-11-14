@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ruff and pytest
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects=()
+          for root in sdks services; do
+            if [ -d "$root" ]; then
+              while IFS= read -r manifest; do
+                projects+=("$manifest")
+              done < <(find "$root" -name pyproject.toml -not -path '*/.venv/*')
+            fi
+          done
+
+          if [ "${#projects[@]}" -eq 0 ]; then
+            echo "No Python projects yet. Skipping until Milestone 1."
+            exit 0
+          fi
+
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+          for manifest in "${projects[@]}"; do
+            dir=$(dirname "$manifest")
+            echo "::group::ruff ${dir}"
+            ruff check "$dir"
+            echo "::endgroup::"
+            if [ -d "${dir}/tests" ]; then
+              echo "::group::pytest ${dir}"
+              python -m pip install -e "${dir}[dev]"
+              pytest "${dir}/tests"
+              echo "::endgroup::"
+            fi
+          done
+
+  web:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Typecheck and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f apps/web/package.json ]; then
+            echo "Frontend not scaffolded yet. Skipping until Milestone 4."
+            exit 0
+          fi
+          cd apps/web
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run build
