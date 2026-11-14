@@ -340,6 +340,64 @@ class PostgresEventRepository:
             )
             await session.commit()
 
+    async def get_eval(self, job_id: UUID) -> EvalJob | None:
+        async with self._session_factory() as session:
+            row = await session.get(EvalJobRow, job_id)
+            if row is None:
+                return None
+            return EvalJob(
+                job_id=row.job_id,
+                schema_version=row.schema_version,  # type: ignore[arg-type]
+                status=row.status,  # type: ignore[arg-type]
+                rubric_version=row.rubric_version,
+                judge_model=row.judge_model,
+                trace_id=row.trace_id,
+                query=row.query,
+                contexts=list(row.contexts),
+                answer=row.answer,
+                context_relevance=row.context_relevance,
+                hallucination_label=row.hallucination_label,  # type: ignore[arg-type]
+                rationale=row.rationale,
+                error_message=row.error_message,
+                attempt=row.attempt,
+                created_at=row.created_at,
+                started_at=row.started_at,
+                finished_at=row.finished_at,
+                locked_at=row.locked_at,
+            )
+
+    async def start_eval(self, job_id: UUID, lock_seconds: int) -> EvalJob | None:
+        sql = text(
+            """
+            UPDATE eval_jobs
+            SET status = 'running',
+                started_at = now(),
+                locked_at = now() + make_interval(secs => :lock_seconds),
+                attempt = attempt + 1
+            WHERE job_id = :job_id AND status IN ('queued', 'running')
+            RETURNING *
+            """
+        )
+        async with self._session_factory() as session:
+            result = await session.execute(
+                sql, {"job_id": job_id, "lock_seconds": lock_seconds}
+            )
+            row = result.mappings().first()
+            await session.commit()
+        return _eval_from_mapping(row) if row else None
+
+    async def requeue_eval(self, job_id: UUID) -> None:
+        sql = text(
+            """
+            UPDATE eval_jobs
+            SET status = 'queued', locked_at = NULL, started_at = NULL
+            WHERE job_id = :job_id
+            """
+        )
+        async with self._session_factory() as session:
+            await session.execute(sql, {"job_id": job_id})
+            await session.commit()
+
     async def claim_eval_jobs(self, limit: int, lock_seconds: int) -> list[EvalJob]:
         sql = text(
             """

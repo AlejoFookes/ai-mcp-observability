@@ -77,6 +77,31 @@ class MemoryEventRepository:
         )
         self.evals[stored.job_id] = stored
 
+    async def get_eval(self, job_id: UUID) -> EvalJob | None:
+        return self.evals.get(job_id)
+
+    async def start_eval(self, job_id: UUID, lock_seconds: int) -> EvalJob | None:
+        job = self.evals.get(job_id)
+        if job is None:
+            return None
+        now = datetime.now(UTC)
+        updated = job.model_copy(
+            update={
+                "status": "running",
+                "started_at": now,
+                "locked_at": now + timedelta(seconds=lock_seconds),
+                "attempt": job.attempt + 1,
+            }
+        )
+        self.evals[job_id] = updated
+        return updated
+
+    async def requeue_eval(self, job_id: UUID) -> None:
+        job = self.evals[job_id]
+        self.evals[job_id] = job.model_copy(
+            update={"status": "queued", "locked_at": None, "started_at": None}
+        )
+
     async def claim_eval_jobs(self, limit: int, lock_seconds: int) -> list[EvalJob]:
         now = datetime.now(UTC)
         claimed: list[EvalJob] = []
