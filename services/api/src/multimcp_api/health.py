@@ -1,8 +1,10 @@
-"""Storage readiness probe. M3.1 ships a no-op; M3.2 wires Postgres SELECT 1."""
+"""Storage readiness probe. Wraps EventRepository.ping when available."""
 
 from __future__ import annotations
 
 from typing import Protocol
+
+from multimcp_api.repositories.base import EventRepository
 
 
 class HealthProbe(Protocol):
@@ -11,7 +13,7 @@ class HealthProbe(Protocol):
 
 
 class AlwaysOkProbe:
-    """Used until a real repository is wired (tests and M3.1 skeleton)."""
+    """Default for tests that do not care about storage."""
 
     async def ping(self) -> bool:
         return True
@@ -22,3 +24,13 @@ class AlwaysDownProbe:
 
     async def ping(self) -> bool:
         return False
+
+
+class RepositoryHealthProbe:
+    """Delegates to EventRepository.ping (SELECT 1 on Postgres)."""
+
+    def __init__(self, repository: EventRepository) -> None:
+        self._repository = repository
+
+    async def ping(self) -> bool:
+        return await self._repository.ping()

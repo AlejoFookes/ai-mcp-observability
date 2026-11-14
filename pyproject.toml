@@ -34,5 +34,6 @@ known-first-party = ["multimcp", "multimcp_proxy", "multimcp_api"]
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "-ra"]
 testpaths = ["sdks", "services"]
+pythonpath = ["services/api/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
