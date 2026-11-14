@@ -18,8 +18,6 @@ class HealthResponse(ApiModel):
 
 
 class IngestResponse(ApiModel):
-    """Stub response for M3.1 auth coverage. Full ingest lands in M3.3."""
-
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     accepted: int = Field(ge=0)
     duplicates: int = Field(ge=0)
