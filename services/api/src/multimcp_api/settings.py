@@ -47,10 +47,10 @@ def _load_dotenv_into_environ() -> None:
         if not key:
             continue
         parsed[key] = value.strip().strip('"').strip("'")
+    # Local DX: values present in `.env` win (so a stale shell OPENAI_API_KEY
+    # cannot override a freshly edited Groq key).
     for key, value in parsed.items():
-        current = os.environ.get(key)
-        if current is None or current.strip() == "":
-            os.environ[key] = value
+        os.environ[key] = value
 
 
 class Settings(BaseSettings):
