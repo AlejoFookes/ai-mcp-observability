@@ -1,3 +1,5 @@
+import os
+
 from multimcp_api.settings import Settings
 
 
@@ -39,3 +41,20 @@ def test_memory_backend_builds_memory_repository() -> None:
     settings = Settings(storage_backend="memory", ingest_token="x")
     repo = build_repository(settings)
     assert isinstance(repo, MemoryEventRepository)
+
+
+def test_load_dotenv_fills_empty_environ(tmp_path, monkeypatch) -> None:
+    from multimcp_api import settings as settings_mod
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "OPENAI_API_KEY=\nOPENAI_API_KEY=gsk_test_from_dotenv\nINGEST_TOKEN=tok\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("INGEST_TOKEN", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.chdir(tmp_path)
+    settings_mod._load_dotenv_into_environ()
+    assert os.environ.get("OPENAI_API_KEY") == "gsk_test_from_dotenv"
+    assert os.environ.get("INGEST_TOKEN") == "tok"

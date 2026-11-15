@@ -134,6 +134,15 @@ async def run_dual_completion(
     except AppError:
         raise
     except Exception as exc:
+        message = str(exc)
+        if "401" in message or "Invalid API Key" in message:
+            raise AppError(
+                502,
+                "internal_error",
+                "model call failed: invalid OPENAI_API_KEY for OPENAI_BASE_URL "
+                "(use a Groq key from https://console.groq.com/keys in the repo .env, "
+                "then restart multimcp-api)",
+            ) from exc
         raise AppError(502, "internal_error", f"model call failed: {exc}") from exc
     finally:
         buffered = exporter.drain()

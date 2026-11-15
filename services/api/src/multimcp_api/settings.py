@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -16,6 +18,39 @@ _DEFAULT_DATABASE_URL = "postgresql+asyncpg://multimcp:multimcp@localhost:5432/m
 
 def _asyncpg_to_psycopg(url: str) -> str:
     return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+
+
+def _discover_dotenv_file() -> Path | None:
+    """Nearest `.env` walking up from cwd, else from this package (local DX)."""
+    for start in (Path.cwd().resolve(), Path(__file__).resolve().parent):
+        for parent in (start, *start.parents):
+            candidate = parent / ".env"
+            if candidate.is_file():
+                return candidate
+            if parent.parent == parent:
+                break
+    return None
+
+
+def _load_dotenv_into_environ() -> None:
+    """Fill empty/missing os.environ keys from `.env` (last duplicate line wins)."""
+    path = _discover_dotenv_file()
+    if path is None:
+        return
+    parsed: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key:
+            continue
+        parsed[key] = value.strip().strip('"').strip("'")
+    for key, value in parsed.items():
+        current = os.environ.get(key)
+        if current is None or current.strip() == "":
+            os.environ[key] = value
 
 
 class Settings(BaseSettings):
@@ -64,6 +99,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    _load_dotenv_into_environ()
     return Settings()
 
 
