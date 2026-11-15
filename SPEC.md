@@ -717,10 +717,12 @@ El script `"build"` es `tsc -b && vite build`. El cliente HTTP es `fetch` tipado
 
 Pantallas:
 
-1. **FinOps.** Gasto por modelo, por `prompt_version` y volumen por servidor MCP. Filtro de fechas y toggle de gasto del juez.
-2. **Latencia.** `p50` y `p95` por modelo, operación y tool MCP, más `error_rate`.
+1. **FinOps.** Por modelo y por `prompt_version`: gráfico con **In tokens**, **Out tokens** y **Requests** (medibles aunque el modelo esté `unpriced` y el costo quede en $0). La tabla sigue mostrando también `estimated_cost_usd` y `unpriced_count`. Volumen por servidor MCP. Filtro de fechas y toggle de gasto del juez.
+2. **Latencia.** `p50` y `p95` por modelo, operación y tool MCP, más `error_rate`. En la UI las columnas y la leyenda del gráfico se etiquetan así (los campos del JSON siguen siendo `p50_ms` / `p95_ms`):
+   - `p50` → **latencia típica (mediana)** — la mitad de las requests terminó en ≤ ese valor.
+   - `p95` → **cola lenta (95% ≤ X ms)** — el 95% de las requests terminó en ≤ ese valor; el resto fue más lento.
 3. **Trazas.** Buscador por `trace_id` y línea de tiempo de spans GenAI y MCP.
-4. **Comparar.** Dos `prompt_version` o dos modelos, lado a lado, con el conteo de muestras visible.
+4. **Comparar.** Dos `prompt_version` o dos modelos, lado a lado, con el conteo de muestras visible. Las mismas etiquetas de latencia (`latencia típica` / `cola lenta`) que en Latencia.
 
 El token de lectura vive en `sessionStorage`, cargado desde un campo de la UI. No se escribe en el bundle.
 

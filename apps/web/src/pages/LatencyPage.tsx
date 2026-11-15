@@ -51,8 +51,9 @@ export function LatencyPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Latency</h2>
         <p className="mt-1 max-w-2xl text-[var(--muted)]">
-          p50, p95 and error_rate by model, operation or MCP tool. Percentiles
-          include failed calls.
+          Latencia típica (mediana / p50), cola lenta (95% ≤ X ms / p95) and
+          error_rate by model, operation or MCP tool. Percentiles include
+          failed calls.
         </p>
       </div>
 
@@ -114,8 +115,16 @@ export function LatencyPage() {
               <YAxis unit="ms" tick={{ fontSize: 11 }} width={56} />
               <Tooltip formatter={(value) => formatMs(Number(value ?? 0))} />
               <Legend />
-              <Bar dataKey="p50_ms" fill="var(--accent)" name="p50" />
-              <Bar dataKey="p95_ms" fill="#3d7a6c" name="p95" />
+              <Bar
+                dataKey="p50_ms"
+                fill="var(--accent)"
+                name="Latencia típica (mediana)"
+              />
+              <Bar
+                dataKey="p95_ms"
+                fill="#3d7a6c"
+                name="Cola lenta (95% ≤ X ms)"
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -126,8 +135,18 @@ export function LatencyPage() {
               <tr>
                 <th className="px-3 py-2 font-medium">Key</th>
                 <th className="px-3 py-2 font-medium">Count</th>
-                <th className="px-3 py-2 font-medium">p50</th>
-                <th className="px-3 py-2 font-medium">p95</th>
+                <th
+                  className="px-3 py-2 font-medium"
+                  title="p50 — mitad de las requests ≤ este valor"
+                >
+                  Latencia típica (mediana)
+                </th>
+                <th
+                  className="px-3 py-2 font-medium"
+                  title="p95 — 95% de las requests ≤ este valor"
+                >
+                  Cola lenta (95% ≤ X ms)
+                </th>
                 <th className="px-3 py-2 font-medium">Error rate</th>
               </tr>
             </thead>

@@ -34,11 +34,21 @@ function SideCard({ title, side }: { title: string; side: CompareSide }) {
         <dd className="tabular-nums">{formatUsd(side.estimated_cost_usd)}</dd>
         <dt className="text-[var(--muted)]">Unpriced</dt>
         <dd className="tabular-nums">{side.unpriced_count}</dd>
-        <dt className="text-[var(--muted)]">p50</dt>
+        <dt
+          className="text-[var(--muted)]"
+          title="p50 — mitad de las requests ≤ este valor"
+        >
+          Latencia típica (mediana)
+        </dt>
         <dd className="tabular-nums">
           {side.p50_ms === null ? "—" : formatMs(side.p50_ms)}
         </dd>
-        <dt className="text-[var(--muted)]">p95</dt>
+        <dt
+          className="text-[var(--muted)]"
+          title="p95 — 95% de las requests ≤ este valor"
+        >
+          Cola lenta (95% ≤ X ms)
+        </dt>
         <dd className="tabular-nums">
           {side.p95_ms === null ? "—" : formatMs(side.p95_ms)}
         </dd>

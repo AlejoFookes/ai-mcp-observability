@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +20,14 @@ import { formatUsd } from "../lib/window";
 function costNumber(row: FinOpsRow): number {
   const n = Number(row.estimated_cost_usd);
   return Number.isNaN(n) ? 0 : n;
+}
+
+function allUnpriced(rows: FinOpsRow[]): boolean {
+  return (
+    rows.length > 0 &&
+    rows.every((row) => row.unpriced_count >= row.request_count) &&
+    rows.every((row) => costNumber(row) === 0)
+  );
 }
 
 function FinOpsSection({
@@ -48,16 +57,31 @@ function FinOpsSection({
   });
 
   const rows = query.data?.rows ?? [];
-  const chartData = rows.map((row) => ({
-    key: row.key,
-    value: metric === "cost" ? costNumber(row) : row.request_count,
-  }));
+  const unpricedOnly = metric === "cost" && allUnpriced(rows);
+  const chartData =
+    metric === "cost"
+      ? rows.map((row) => ({
+          key: row.key,
+          input_tokens: row.input_tokens,
+          output_tokens: row.output_tokens,
+          requests: row.request_count,
+        }))
+      : rows.map((row) => ({
+          key: row.key,
+          requests: row.request_count,
+        }));
 
   return (
     <section className="flex flex-col gap-3">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         <p className="text-sm text-[var(--muted)]">{summary}</p>
+        {unpricedOnly ? (
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Modelos sin tarifa en el catálogo: el gráfico usa tokens y requests
+            (est. cost queda en $0 / unpriced).
+          </p>
+        ) : null}
       </div>
       <QueryStatus
         isPending={query.isPending}
@@ -69,16 +93,67 @@ function FinOpsSection({
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
-              <XAxis dataKey="key" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={48} />
-              <YAxis tick={{ fontSize: 11 }} width={56} />
-              <Tooltip
-                formatter={(value) =>
-                  metric === "cost"
-                    ? formatUsd(String(value ?? 0))
-                    : String(value ?? 0)
-                }
+              <XAxis
+                dataKey="key"
+                tick={{ fontSize: 11 }}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={48}
               />
-              <Bar dataKey="value" fill="var(--accent)" name={metric === "cost" ? "USD" : "requests"} />
+              {metric === "cost" ? (
+                <>
+                  <YAxis
+                    yAxisId="tokens"
+                    tick={{ fontSize: 11 }}
+                    width={56}
+                    label={{
+                      value: "tokens",
+                      angle: -90,
+                      position: "insideLeft",
+                      style: { fontSize: 10, fill: "var(--muted)" },
+                    }}
+                  />
+                  <YAxis
+                    yAxisId="requests"
+                    orientation="right"
+                    tick={{ fontSize: 11 }}
+                    width={40}
+                    allowDecimals={false}
+                  />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    yAxisId="tokens"
+                    dataKey="input_tokens"
+                    fill="var(--accent)"
+                    name="In tokens"
+                  />
+                  <Bar
+                    yAxisId="tokens"
+                    dataKey="output_tokens"
+                    fill="#3d7a6c"
+                    name="Out tokens"
+                  />
+                  <Bar
+                    yAxisId="requests"
+                    dataKey="requests"
+                    fill="#8a6a3d"
+                    name="Requests"
+                  />
+                </>
+              ) : (
+                <>
+                  <YAxis tick={{ fontSize: 11 }} width={56} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="requests"
+                    fill="var(--accent)"
+                    name="Requests"
+                  />
+                </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -101,7 +176,10 @@ function FinOpsSection({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-b border-[var(--line)] last:border-0">
+                <tr
+                  key={row.key}
+                  className="border-b border-[var(--line)] last:border-0"
+                >
                   <td className="px-3 py-2 font-medium">{row.key}</td>
                   <td className="px-3 py-2">{row.request_count}</td>
                   <td className="px-3 py-2">{row.error_count}</td>
@@ -109,7 +187,9 @@ function FinOpsSection({
                     <>
                       <td className="px-3 py-2">{row.input_tokens}</td>
                       <td className="px-3 py-2">{row.output_tokens}</td>
-                      <td className="px-3 py-2">{formatUsd(row.estimated_cost_usd)}</td>
+                      <td className="px-3 py-2">
+                        {formatUsd(row.estimated_cost_usd)}
+                      </td>
                       <td className="px-3 py-2">{row.unpriced_count}</td>
                     </>
                   ) : null}
@@ -133,8 +213,8 @@ export function FinOpsPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">FinOps</h2>
         <p className="mt-1 max-w-2xl text-[var(--muted)]">
-          Spend by model and prompt_version, plus MCP server volume. Judge spend
-          stays out unless you opt in.
+          Tokens and requests by model and prompt_version (cost when priced),
+          plus MCP server volume. Judge spend stays out unless you opt in.
         </p>
       </div>
 
@@ -162,7 +242,7 @@ export function FinOpsPage() {
 
       <FinOpsSection
         title="By model"
-        summary="Estimated USD and tokens grouped as provider/model."
+        summary="In/out tokens and requests grouped as provider/model. Est. cost when priced."
         groupBy="model"
         includeJudge={includeJudge}
         window={window}
@@ -170,7 +250,7 @@ export function FinOpsPage() {
       />
       <FinOpsSection
         title="By prompt_version"
-        summary="Same FinOps measures rolled up by prompt_version metadata."
+        summary="Same measures rolled up by prompt_version — useful when cost is unpriced."
         groupBy="prompt_version"
         includeJudge={includeJudge}
         window={window}
