@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import logging
+import threading
 import time
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
-from multimcp import HttpExporter, configure, prompt_context, wrap_openai
+from multimcp import configure, prompt_context, wrap_openai
+from multimcp.exporters.base import Event
+from multimcp.models import GenAIEvent, McpEvent
 
 from multimcp_api.errors import AppError
+from multimcp_api.repositories.base import EventRepository
 from multimcp_api.settings import Settings
+
+logger = logging.getLogger("multimcp_api")
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +34,24 @@ class DualResult:
     prompt_version: str
     left: DualSide
     right: DualSide
+
+
+@dataclass
+class _BufferExporter:
+    """In-process exporter — avoids HTTP self-POST deadlocks on a single Uvicorn worker."""
+
+    _events: list[Event] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def insert(self, events: Sequence[Event]) -> None:
+        with self._lock:
+            self._events.extend(events)
+
+    def drain(self) -> list[Event]:
+        with self._lock:
+            out = list(self._events)
+            self._events.clear()
+            return out
 
 
 def _completion_text(response: Any) -> str:
@@ -50,8 +76,9 @@ def _resolve_api_key(settings: Settings) -> str:
     return key
 
 
-def run_dual_completion(
+async def run_dual_completion(
     settings: Settings,
+    repository: EventRepository,
     *,
     prompt: str,
     left_model: str,
@@ -68,11 +95,7 @@ def run_dual_completion(
         ) from exc
 
     api_key = _resolve_api_key(settings)
-    exporter = HttpExporter(
-        url="http://127.0.0.1:8000",
-        token=settings.ingest_token or None,
-        background=False,
-    )
+    exporter = _BufferExporter()
     configure(exporter=exporter)
 
     raw = OpenAI(api_key=api_key, base_url=settings.openai_base_url or settings.judge_base_url)
@@ -113,8 +136,16 @@ def run_dual_completion(
     except Exception as exc:
         raise AppError(502, "internal_error", f"model call failed: {exc}") from exc
     finally:
-        exporter.flush()
-        exporter.close()
+        buffered = exporter.drain()
+        genai = [e for e in buffered if isinstance(e, GenAIEvent)]
+        mcp = [e for e in buffered if isinstance(e, McpEvent)]
+        try:
+            if genai:
+                await repository.insert_genai(genai)
+            if mcp:
+                await repository.insert_mcp(mcp)
+        except Exception:
+            logger.exception("playground: failed to persist telemetry events")
 
     return DualResult(
         trace_id=trace_id,

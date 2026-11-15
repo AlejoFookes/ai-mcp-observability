@@ -5,8 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from multimcp_api.auth import require_ingest_token
-from multimcp_api.deps import get_app_settings
+from multimcp_api.deps import get_app_settings, get_repository
 from multimcp_api.playground.dual import run_dual_completion
+from multimcp_api.repositories.base import EventRepository
 from multimcp_api.schemas.playground import (
     DualPlaygroundRequest,
     DualPlaygroundResponse,
@@ -21,10 +22,12 @@ router = APIRouter(tags=["playground"], dependencies=[Depends(require_ingest_tok
 async def playground_dual(
     body: DualPlaygroundRequest,
     settings: Annotated[Settings, Depends(get_app_settings)],
+    repository: Annotated[EventRepository, Depends(get_repository)],
 ) -> DualPlaygroundResponse:
-    """Run one prompt on two models; telemetry lands in FinOps/Traces via wrap_openai."""
-    result = run_dual_completion(
+    """Run one prompt on two models; telemetry is written in-process to the repository."""
+    result = await run_dual_completion(
         settings,
+        repository,
         prompt=body.prompt,
         left_model=body.left_model,
         right_model=body.right_model,

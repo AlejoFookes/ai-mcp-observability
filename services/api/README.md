@@ -30,6 +30,6 @@ Por defecto usa **Groq** (`OPENAI_BASE_URL=https://api.groq.com/openai/v1`, mode
 `openai/gpt-oss-20b` / `openai/gpt-oss-120b`). Requiere `OPENAI_API_KEY` = key de
 https://console.groq.com/keys (o `JUDGE_API_KEY`) y el extra `openai`.
 Los ids disponibles dependen de la cuenta; listá con la API de models de Groq.
-La telemetría se reingesta en la misma API → FinOps / Traces.
+La telemetría se escribe **en proceso** al repositorio (sin HTTP a sí misma) → FinOps / Traces.
 
 Contratos en [`SPEC.md`](../../SPEC.md), sección 6–8. Configuración solo por variables de entorno.

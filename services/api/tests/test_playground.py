@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -32,10 +32,13 @@ async def test_playground_dual_returns_both_sides() -> None:
     fake = DualResult(
         trace_id="trace-1",
         prompt_version="playground",
-        left=DualSide(model="gpt-4.1-mini", answer="hola left", latency_ms=12.0),
-        right=DualSide(model="gpt-4.1-nano", answer="hola right", latency_ms=8.0),
+        left=DualSide(model="openai/gpt-oss-20b", answer="hola left", latency_ms=12.0),
+        right=DualSide(model="openai/gpt-oss-120b", answer="hola right", latency_ms=8.0),
     )
-    with patch("multimcp_api.api.v1.playground.run_dual_completion", return_value=fake):
+    with patch(
+        "multimcp_api.api.v1.playground.run_dual_completion",
+        new=AsyncMock(return_value=fake),
+    ):
         transport = ASGITransport(app=_app())
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
@@ -44,8 +47,8 @@ async def test_playground_dual_returns_both_sides() -> None:
                 json={
                     "schema_version": "1.0",
                     "prompt": "Hola",
-                    "left_model": "gpt-4.1-mini",
-                    "right_model": "gpt-4.1-nano",
+                    "left_model": "openai/gpt-oss-20b",
+                    "right_model": "openai/gpt-oss-120b",
                 },
             )
     assert response.status_code == 200
