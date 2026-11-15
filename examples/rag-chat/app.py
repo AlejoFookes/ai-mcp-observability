@@ -12,7 +12,12 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
-from rag_chat.bot import PROMPT_VERSIONS, answer_question, configure_telemetry
+from rag_chat.bot import (
+    MODEL_BY_PROMPT_VERSION,
+    PROMPT_VERSIONS,
+    answer_question,
+    configure_telemetry,
+)
 from rag_chat.config import Settings, load_env_files, load_settings
 from rag_chat.index import Corpus, build_corpus
 
@@ -63,7 +68,18 @@ def main() -> None:
             index=0,
             help="Cambiá v1↔v2 y compará en el dashboard (Compare → prompt_version).",
         )
-        st.text(f"Modelo chat: {settings.chat_model}")
+        dual_models = st.checkbox(
+            "Demo LinkedIn: v1→20b, v2→120b",
+            value=True,
+            help="Si está activo, cada prompt_version usa un modelo distinto para que "
+            "Latency y Compare muestren dos filas claras.",
+        )
+        active_model = (
+            MODEL_BY_PROMPT_VERSION.get(prompt_version, settings.chat_model)
+            if dual_models
+            else settings.chat_model
+        )
+        st.text(f"Modelo de esta respuesta: {active_model}")
         st.text(f"Base URL: {settings.openai_base_url}")
         st.text(f"Retrieval: {settings.retrieval} ({corpus.mode})")
         st.text(f"Ingest: {settings.ingest_url}")
@@ -104,6 +120,7 @@ def main() -> None:
                     corpus=corpus,
                     question=question,
                     prompt_version=prompt_version,
+                    dual_models=dual_models,
                 )
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Falló la llamada al modelo: {exc}")
@@ -113,6 +130,7 @@ def main() -> None:
         sources = ", ".join(sorted({c.source for c in result.contexts})) or "—"
         meta = (
             f"`prompt_version={result.prompt_version}` · "
+            f"`model={result.model}` · "
             f"`trace_id={result.trace_id}` · fuentes: {sources}"
         )
         st.caption(meta)

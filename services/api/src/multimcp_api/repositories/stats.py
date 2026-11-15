@@ -47,9 +47,16 @@ def is_judge(event: GenAIEvent) -> bool:
     return role == "judge"
 
 
+def _genai_label(provider: str, model: str) -> str:
+    """Avoid openai/openai/... when model already includes a provider prefix."""
+    if "/" in model:
+        return model
+    return f"{provider}/{model}"
+
+
 def genai_group_key(event: GenAIEvent, group_by: str) -> str:
     if group_by == "model":
-        return f"{event.provider}/{event.model}"
+        return _genai_label(event.provider, event.model)
     if group_by == "provider":
         return event.provider
     if group_by == "prompt_version":
@@ -222,12 +229,6 @@ def build_trace(
     return spans
 
 
-def _genai_label(provider: str, model: str) -> str:
-    if "/" in model:
-        return model
-    return f"{provider}/{model}"
-
-
 def list_trace_summaries(
     genai: Sequence[GenAIEvent],
     mcp: Sequence[McpEvent],
@@ -308,7 +309,7 @@ def compare_side(
             if (event.prompt_version or "") != key:
                 continue
         else:
-            if f"{event.provider}/{event.model}" != key:
+            if _genai_label(event.provider, event.model) != key:
                 continue
         matched.append(event)
     if not matched:

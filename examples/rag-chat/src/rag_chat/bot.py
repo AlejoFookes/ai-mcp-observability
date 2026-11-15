@@ -23,12 +23,20 @@ PROMPT_VERSIONS: dict[str, str] = {
     ),
 }
 
+# LinkedIn / bakeoff demo: each prompt_version can pin a different chat model so
+# Latency + Compare show two clear rows (not just prompt text differences).
+MODEL_BY_PROMPT_VERSION: dict[str, str] = {
+    "support-v1": "openai/gpt-oss-20b",
+    "support-v2": "openai/gpt-oss-120b",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Answer:
     text: str
     trace_id: str
     prompt_version: str
+    model: str
     contexts: list[Chunk]
 
 
@@ -40,6 +48,17 @@ def configure_telemetry(settings: Settings) -> None:
     configure()
 
 
+def resolve_chat_model(
+    *,
+    settings: Settings,
+    prompt_version: str,
+    dual_models: bool,
+) -> str:
+    if dual_models and prompt_version in MODEL_BY_PROMPT_VERSION:
+        return MODEL_BY_PROMPT_VERSION[prompt_version]
+    return settings.chat_model
+
+
 def answer_question(
     *,
     client: OpenAI,
@@ -47,9 +66,16 @@ def answer_question(
     corpus: Corpus,
     question: str,
     prompt_version: str,
+    dual_models: bool = True,
 ) -> Answer:
     if prompt_version not in PROMPT_VERSIONS:
         raise ValueError(f"Unknown prompt_version: {prompt_version}")
+
+    model = resolve_chat_model(
+        settings=settings,
+        prompt_version=prompt_version,
+        dual_models=dual_models,
+    )
 
     contexts = retrieve(
         corpus,
@@ -77,7 +103,7 @@ def answer_question(
         trace_id=trace_id,
     ):
         completion = wrapped.chat.completions.create(
-            model=settings.chat_model,
+            model=model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -96,5 +122,6 @@ def answer_question(
         text=text,
         trace_id=trace_id,
         prompt_version=prompt_version,
+        model=model,
         contexts=contexts,
     )
