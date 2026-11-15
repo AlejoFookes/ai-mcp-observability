@@ -1,0 +1,34 @@
+[project]
+name = "multimcp-proxy"
+version = "0.1.0"
+description = "Proxy MCP stdio y Streamable HTTP con telemetría multiMCP."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [{ name = "Alejo Fookes" }]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "multimcp",
+    "httpx>=0.28,<1",
+    "starlette>=0.41,<1",
+    "uvicorn>=0.32,<1",
+]
+
+[project.scripts]
+multimcp-proxy = "multimcp_proxy.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "ruff>=0.8,<1"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/multimcp_proxy"]
+
+[tool.uv.sources]
+multimcp = { workspace = true }

@@ -46,17 +46,7 @@ jobs:
           node-version: "22"
 
       - name: Typecheck and build
-        shell: bash
+        working-directory: apps/web
         run: |
-          set -euo pipefail
-          if [ ! -f apps/web/package.json ]; then
-            echo "Frontend not scaffolded yet. Skipping until Milestone 4."
-            exit 0
-          fi
-          cd apps/web
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          npm ci
           npm run build

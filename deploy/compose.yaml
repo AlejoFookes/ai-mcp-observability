@@ -1,0 +1,93 @@
+# Portable stack: Postgres + API + eval worker + web dashboard (SPEC §10).
+# No Redis. Proxy MCP stays outside Compose (run beside the user's MCP server).
+# From repo root:
+#   cp .env.example .env   # set INGEST_TOKEN
+#   docker compose -f deploy/compose.yaml up --build
+# Ready when:
+#   curl -sf http://127.0.0.1:8000/api/v1/health?ready=true
+#   open http://127.0.0.1:5173
+
+name: multimcp
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: multimcp
+      POSTGRES_PASSWORD: multimcp
+      POSTGRES_DB: multimcp
+    ports:
+      - "5432:5432"
+    volumes:
+      - multimcp_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U multimcp -d multimcp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      STORAGE_BACKEND: postgres
+      EVAL_BACKEND: postgres
+      DATABASE_URL: postgresql+asyncpg://multimcp:multimcp@postgres:5432/multimcp
+      ALEMBIC_DATABASE_URL: postgresql+psycopg://multimcp:multimcp@postgres:5432/multimcp
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+      JUDGE_BASE_URL: ${JUDGE_BASE_URL:-https://api.openai.com/v1}
+      JUDGE_MODEL: ${JUDGE_MODEL:-}
+      JUDGE_API_KEY: ${JUDGE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health?ready=true')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    command: ["python", "-m", "multimcp_api.eval.worker"]
+    environment:
+      RUN_MIGRATIONS: "0"
+      STORAGE_BACKEND: postgres
+      EVAL_BACKEND: postgres
+      DATABASE_URL: postgresql+asyncpg://multimcp:multimcp@postgres:5432/multimcp
+      ALEMBIC_DATABASE_URL: postgresql+psycopg://multimcp:multimcp@postgres:5432/multimcp
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+      JUDGE_BASE_URL: ${JUDGE_BASE_URL:-https://api.openai.com/v1}
+      JUDGE_MODEL: ${JUDGE_MODEL:-}
+      JUDGE_API_KEY: ${JUDGE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  multimcp_pg:

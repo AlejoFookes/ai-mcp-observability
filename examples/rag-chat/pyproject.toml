@@ -1,0 +1,23 @@
+[project]
+name = "multimcp-rag-chat"
+version = "0.1.0"
+description = "Side demo: minimal RAG chat instrumented with multimcp for FinOps."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "multimcp[openai]",
+    "numpy>=2.1,<3",
+    "streamlit>=1.40,<2",
+    "httpx>=0.28,<1",
+    "python-dotenv>=1.0,<2",
+]
+
+[tool.uv.sources]
+multimcp = { path = "../../sdks/python", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag_chat"]
