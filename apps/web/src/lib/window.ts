@@ -30,9 +30,16 @@ export function windowParamsFromInputs(
   fromInput: string,
   toInput: string,
 ): WindowParams {
+  const from = fromLocalInputValue(fromInput);
+  // `<input type="datetime-local">` is minute-precision and the API treats `to`
+  // as exclusive. Pad one minute so events in the selected minute are included.
+  const toDate = new Date(fromLocalInputValue(toInput));
+  toDate.setUTCMinutes(toDate.getUTCMinutes() + 1);
+  const liveFloor = new Date(Date.now() + 60_000);
+  const to = toDate.getTime() >= liveFloor.getTime() ? toDate : liveFloor;
   return {
-    from: fromLocalInputValue(fromInput),
-    to: fromLocalInputValue(toInput),
+    from,
+    to: to.toISOString(),
   };
 }
 

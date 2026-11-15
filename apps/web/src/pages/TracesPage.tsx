@@ -6,7 +6,7 @@ import type { TraceSpan, TraceSummary } from "../api/types";
 import { QueryStatus } from "../components/QueryStatus";
 import { WindowFilters } from "../components/WindowFilters";
 import { useQueryWindow } from "../hooks/useQueryWindow";
-import { formatMs, formatOccurredAt } from "../lib/window";
+import { formatMs, formatOccurredAt, toLocalInputValue } from "../lib/window";
 
 function kindLabel(kind: TraceSpan["kind"]): string {
   return kind === "genai" ? "model" : "tool";
@@ -32,19 +32,33 @@ function detailEntries(detail: Record<string, unknown>): string {
 export function TracesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("trace_id");
-  const { fromInput, toInput, setFromInput, setToInput, window, windowError } =
-    useQueryWindow();
+  const {
+    fromInput,
+    toInput,
+    setFromInput,
+    setToInput,
+    window: queryWindow,
+    windowError,
+  } = useQueryWindow();
   const [draft, setDraft] = useState(selectedId ?? "");
 
+  // Keep the visible "To" filter near wall-clock so new RAG/Playground events appear.
+  useEffect(() => {
+    const id = globalThis.setInterval(() => {
+      setToInput(toLocalInputValue(new Date()));
+    }, 30_000);
+    return () => globalThis.clearInterval(id);
+  }, [setToInput]);
+
   const listQuery = useQuery({
-    queryKey: ["traces", window?.from, window?.to],
+    queryKey: ["traces", queryWindow?.from, queryWindow?.to],
     queryFn: () => {
-      if (window === null) {
+      if (queryWindow === null) {
         throw new Error("Window required");
       }
-      return fetchTraceList(window, 50);
+      return fetchTraceList(queryWindow, 50);
     },
-    enabled: window !== null,
+    enabled: queryWindow !== null,
     refetchInterval: 5_000,
   });
 
