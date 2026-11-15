@@ -16,14 +16,15 @@ Chat de soporte con RAG sobre políticas locales (`data/*.md`). Cada respuesta p
 
 1. API multiMCP en `http://127.0.0.1:8000` (p. ej. `STORAGE_BACKEND=memory` o Compose).
 2. Dashboard: `cd apps/web && npm run dev` → http://127.0.0.1:5173 (token = `INGEST_TOKEN`).
-3. `OPENAI_API_KEY` con crédito (embeddings + chat).
+3. Key en el **`.env` de la raíz del repo** (la misma que el Playground). Con Groq:
+   `OPENAI_API_KEY=gsk_…`, `OPENAI_BASE_URL=https://api.groq.com/openai/v1`.
+   El chat usa retrieval **lexical** con Groq (no necesita embeddings de OpenAI).
 
 ## Arranque
 
 ```powershell
 cd examples\rag-chat
-copy .env.example .env
-# Editá .env: OPENAI_API_KEY y MULTIMCP_INGEST_TOKEN=dev-token
+# No hace falta copiar .env si ya está en la raíz del repo.
 
 $uv = "$env:USERPROFILE\.local\bin\uv.exe"
 & $uv sync

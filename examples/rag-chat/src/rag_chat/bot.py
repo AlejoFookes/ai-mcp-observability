@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -7,7 +8,7 @@ from openai import OpenAI
 from multimcp import configure, prompt_context, wrap_openai
 
 from rag_chat.config import Settings
-from rag_chat.index import Chunk, Corpus, embed_texts, retrieve
+from rag_chat.index import Chunk, Corpus, retrieve
 
 PROMPT_VERSIONS: dict[str, str] = {
     "support-v1": (
@@ -32,7 +33,10 @@ class Answer:
 
 
 def configure_telemetry(settings: Settings) -> None:
-    """HttpExporter reads MULTIMCP_INGEST_* from the environment after configure()."""
+    """Point HttpExporter at the local API before wrapping the client."""
+    os.environ["MULTIMCP_INGEST_URL"] = settings.ingest_url
+    if settings.ingest_token:
+        os.environ["MULTIMCP_INGEST_TOKEN"] = settings.ingest_token
     configure()
 
 
@@ -47,8 +51,13 @@ def answer_question(
     if prompt_version not in PROMPT_VERSIONS:
         raise ValueError(f"Unknown prompt_version: {prompt_version}")
 
-    query_vec = embed_texts(client, settings.embed_model, [question])[0]
-    contexts = retrieve(corpus, query_vec, top_k=3)
+    contexts = retrieve(
+        corpus,
+        query=question,
+        client=client,
+        embed_model=settings.embed_model,
+        top_k=3,
+    )
     context_block = "\n\n".join(
         f"[{c.source}]\n{c.text}" for c in contexts
     ) or "(sin contexto)"

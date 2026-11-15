@@ -10,25 +10,29 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-from dotenv import load_dotenv
 from openai import OpenAI
 
 from rag_chat.bot import PROMPT_VERSIONS, answer_question, configure_telemetry
-from rag_chat.config import Settings, load_settings
+from rag_chat.config import Settings, load_env_files, load_settings
 from rag_chat.index import Corpus, build_corpus
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 
-load_dotenv(ROOT / ".env")
+load_env_files(ROOT)
 
 
 @st.cache_resource(show_spinner="Indexando políticas…")
 def _boot() -> tuple[OpenAI, Settings, Corpus]:
     settings = load_settings()
     configure_telemetry(settings)
-    client = OpenAI(api_key=settings.openai_api_key)
-    corpus = build_corpus(client, DATA_DIR, settings.embed_model)
+    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+    corpus = build_corpus(
+        client,
+        DATA_DIR,
+        retrieval=settings.retrieval,
+        embed_model=settings.embed_model,
+    )
     return client, settings, corpus
 
 
@@ -45,8 +49,9 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001 — show setup errors in the UI
         st.error(str(exc))
         st.info(
-            "Copiá `.env.example` → `.env`, seteá `OPENAI_API_KEY` y "
-            "`MULTIMCP_INGEST_TOKEN`, y asegurate de que la API esté en :8000."
+            "Poné `OPENAI_API_KEY` en el `.env` de la raíz del repo (key Groq `gsk_…`) "
+            "o en `examples/rag-chat/.env`. Reiniciá Streamlit. "
+            "API multiMCP en :8000 con el mismo `INGEST_TOKEN` / `MULTIMCP_INGEST_TOKEN`."
         )
         return
 
@@ -59,6 +64,8 @@ def main() -> None:
             help="Cambiá v1↔v2 y compará en el dashboard (Compare → prompt_version).",
         )
         st.text(f"Modelo chat: {settings.chat_model}")
+        st.text(f"Base URL: {settings.openai_base_url}")
+        st.text(f"Retrieval: {settings.retrieval} ({corpus.mode})")
         st.text(f"Ingest: {settings.ingest_url}")
         st.markdown(
             "Dashboard: [http://127.0.0.1:5173](http://127.0.0.1:5173)  \n"
