@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -22,9 +23,11 @@ from multimcp_api.domain.models import (
     InsertResult,
     LatencyRow,
     TraceSpan,
+    TraceSummary,
     WindowQuery,
 )
 from multimcp_api.repositories.orm import EvalJobRow, GenAIEventRow, McpEventRow
+from multimcp_api.repositories.stats import _genai_label
 
 
 class PostgresEventRepository:
@@ -236,7 +239,7 @@ class PostgresEventRepository:
                         trace_id=row.trace_id,
                         status=row.status,
                         latency_ms=float(row.latency_ms),
-                        label=f"{row.provider}/{row.model}",
+                        label=_genai_label(row.provider, row.model),
                         detail={
                             "operation": row.operation,
                             "prompt_version": row.prompt_version,
@@ -262,6 +265,61 @@ class PostgresEventRepository:
                 )
             spans.sort(key=lambda span: span.occurred_at)
             return spans
+
+    async def list_traces(
+        self, *, start: datetime, end: datetime, limit: int
+    ) -> list[TraceSummary]:
+        sql = text(
+            """
+            WITH spans AS (
+              SELECT
+                trace_id,
+                occurred_at,
+                CASE
+                  WHEN position('/' in model) > 0 THEN model
+                  ELSE provider || '/' || model
+                END AS label,
+                prompt_version
+              FROM genai_events
+              WHERE occurred_at >= :start AND occurred_at < :end
+              UNION ALL
+              SELECT
+                trace_id,
+                occurred_at,
+                coalesce(tool_name, method) AS label,
+                NULL::text AS prompt_version
+              FROM mcp_events
+              WHERE occurred_at >= :start AND occurred_at < :end
+            )
+            SELECT
+              trace_id,
+              max(occurred_at) AS last_occurred_at,
+              count(*)::int AS span_count,
+              (array_agg(label ORDER BY occurred_at DESC))[1] AS label,
+              (
+                array_agg(prompt_version ORDER BY occurred_at DESC)
+                FILTER (WHERE prompt_version IS NOT NULL)
+              )[1] AS prompt_version
+            FROM spans
+            GROUP BY trace_id
+            ORDER BY last_occurred_at DESC
+            LIMIT :limit
+            """
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(
+                sql, {"start": start, "end": end, "limit": limit}
+            )
+            return [
+                TraceSummary(
+                    trace_id=row.trace_id,
+                    last_occurred_at=row.last_occurred_at,
+                    span_count=int(row.span_count),
+                    label=row.label,
+                    prompt_version=row.prompt_version,
+                )
+                for row in result
+            ]
 
     async def compare(self, query: CompareQuery) -> CompareResult:
         return CompareResult(

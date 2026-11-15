@@ -57,6 +57,19 @@ class TraceResponse(ApiModel):
     spans: list[TraceSpanOut]
 
 
+class TraceSummaryOut(ApiModel):
+    trace_id: str
+    last_occurred_at: datetime
+    span_count: int
+    label: str | None = None
+    prompt_version: str | None = None
+
+
+class TraceListResponse(ApiModel):
+    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    rows: list[TraceSummaryOut]
+
+
 class CompareSideOut(ApiModel):
     key: str
     request_count: int

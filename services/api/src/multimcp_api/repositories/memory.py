@@ -16,6 +16,7 @@ from multimcp_api.domain.models import (
     InsertResult,
     LatencyRow,
     TraceSpan,
+    TraceSummary,
     WindowQuery,
 )
 from multimcp_api.repositories import stats
@@ -64,6 +65,17 @@ class MemoryEventRepository:
 
     async def get_trace(self, trace_id: str) -> list[TraceSpan]:
         return stats.build_trace(list(self.genai.values()), list(self.mcp.values()), trace_id)
+
+    async def list_traces(
+        self, *, start: datetime, end: datetime, limit: int
+    ) -> list[TraceSummary]:
+        return stats.list_trace_summaries(
+            list(self.genai.values()),
+            list(self.mcp.values()),
+            start=start,
+            end=end,
+            limit=limit,
+        )
 
     async def compare(self, query: CompareQuery) -> CompareResult:
         return stats.build_compare(list(self.genai.values()), query)

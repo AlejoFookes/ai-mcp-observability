@@ -17,6 +17,7 @@ from multimcp_api.domain.models import (
     FinOpsRow,
     LatencyRow,
     TraceSpan,
+    TraceSummary,
     WindowQuery,
 )
 
@@ -191,7 +192,7 @@ def build_trace(
                 trace_id=event.trace_id,
                 status=event.status,
                 latency_ms=float(event.latency_ms),
-                label=f"{event.provider}/{event.model}",
+                label=_genai_label(event.provider, event.model),
                 detail={
                     "operation": event.operation,
                     "prompt_version": event.prompt_version,
@@ -219,6 +220,81 @@ def build_trace(
         )
     spans.sort(key=lambda span: span.occurred_at)
     return spans
+
+
+def _genai_label(provider: str, model: str) -> str:
+    if "/" in model:
+        return model
+    return f"{provider}/{model}"
+
+
+def list_trace_summaries(
+    genai: Sequence[GenAIEvent],
+    mcp: Sequence[McpEvent],
+    *,
+    start: datetime,
+    end: datetime,
+    limit: int,
+) -> list[TraceSummary]:
+    """Aggregate recent traces, newest first."""
+    buckets: dict[str, dict[str, object]] = {}
+
+    def _touch(
+        trace_id: str,
+        occurred_at: datetime,
+        *,
+        label: str | None = None,
+        prompt_version: str | None = None,
+    ) -> None:
+        if occurred_at < start or occurred_at >= end:
+            return
+        bucket = buckets.get(trace_id)
+        if bucket is None:
+            buckets[trace_id] = {
+                "last": occurred_at,
+                "count": 1,
+                "label": label,
+                "prompt_version": prompt_version,
+            }
+            return
+        bucket["count"] = int(bucket["count"]) + 1
+        if occurred_at > bucket["last"]:  # type: ignore[operator]
+            bucket["last"] = occurred_at
+            if label is not None:
+                bucket["label"] = label
+            if prompt_version is not None:
+                bucket["prompt_version"] = prompt_version
+
+    for event in genai:
+        _touch(
+            event.trace_id,
+            event.occurred_at,
+            label=_genai_label(event.provider, event.model),
+            prompt_version=event.prompt_version,
+        )
+    for event in mcp:
+        _touch(
+            event.trace_id,
+            event.occurred_at,
+            label=event.tool_name or event.method,
+        )
+
+    rows = [
+        TraceSummary(
+            trace_id=trace_id,
+            last_occurred_at=data["last"],  # type: ignore[arg-type]
+            span_count=int(data["count"]),
+            label=data["label"] if isinstance(data["label"], str) else None,
+            prompt_version=(
+                data["prompt_version"]
+                if isinstance(data["prompt_version"], str)
+                else None
+            ),
+        )
+        for trace_id, data in buckets.items()
+    ]
+    rows.sort(key=lambda row: row.last_occurred_at, reverse=True)
+    return rows[:limit]
 
 
 def compare_side(

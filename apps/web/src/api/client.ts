@@ -9,6 +9,7 @@ import type {
   HealthResponse,
   LatencyGroupBy,
   LatencyResponse,
+  TraceListResponse,
   TraceResponse,
   WindowParams,
 } from "./types";
@@ -135,6 +136,15 @@ export function fetchLatency(
 export function fetchTrace(traceId: string): Promise<TraceResponse> {
   const encoded = encodeURIComponent(traceId);
   return apiGet<TraceResponse>(`/api/v1/traces/${encoded}`);
+}
+
+export function fetchTraceList(
+  window: WindowParams,
+  limit = 50,
+): Promise<TraceListResponse> {
+  return apiGet<TraceListResponse>(
+    withWindow("/api/v1/traces", window, { limit: String(limit) }),
+  );
 }
 
 export function fetchCompare(

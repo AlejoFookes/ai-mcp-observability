@@ -6,7 +6,7 @@ Dashboard Vite + React 19 + TypeScript for multiMCP FinOps, latency, traces and 
 
 - **FinOps** (`/`): `GET /api/v1/finops/summary` by model, `prompt_version` and MCP server volume, with date window and `include_judge`.
 - **Latency** (`/latency`): `GET /api/v1/latency` for p50 / p95 / error_rate by model, operation or MCP tool.
-- **Traces** (`/traces`): `GET /api/v1/traces/{trace_id}` merged GenAI + MCP timeline; missing ids show 404.
+- **Traces** (`/traces`): live list via `GET /api/v1/traces` (newest first) + detail `GET /api/v1/traces/{trace_id}`.
 - **Compare** (`/compare`): `GET /api/v1/compare` side-by-side for `prompt_version` or `model`, with sample counts.
 - **Playground** (`/playground`): `POST /api/v1/playground/dual` — same prompt on two models; telemetry feeds FinOps/Traces.
 

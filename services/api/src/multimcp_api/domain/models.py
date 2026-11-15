@@ -64,6 +64,14 @@ class TraceSpan(DomainModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
+class TraceSummary(DomainModel):
+    trace_id: str
+    last_occurred_at: datetime
+    span_count: int
+    label: str | None = None
+    prompt_version: str | None = None
+
+
 class CompareQuery(DomainModel):
     start: datetime = Field(alias="from")
     end: datetime = Field(alias="to")

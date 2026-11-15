@@ -20,8 +20,10 @@ from multimcp_api.schemas.queries import (
     FinOpsSummaryResponse,
     LatencyResponse,
     LatencyRowOut,
+    TraceListResponse,
     TraceResponse,
     TraceSpanOut,
+    TraceSummaryOut,
 )
 
 router = APIRouter(tags=["queries"], dependencies=[Depends(require_ingest_token)])
@@ -66,6 +68,21 @@ async def latency(
     )
     return LatencyResponse(
         rows=[LatencyRowOut.model_validate(row.model_dump()) for row in rows]
+    )
+
+
+@router.get("/traces", response_model=TraceListResponse)
+async def list_traces(
+    repository: Annotated[EventRepository, Depends(get_repository)],
+    from_: Annotated[datetime, Query(alias="from")],
+    to: Annotated[datetime, Query()],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> TraceListResponse:
+    """Recent traces in the window, newest first."""
+    validate_window(from_, to)
+    rows = await repository.list_traces(start=from_, end=to, limit=limit)
+    return TraceListResponse(
+        rows=[TraceSummaryOut.model_validate(row.model_dump()) for row in rows]
     )
 
 

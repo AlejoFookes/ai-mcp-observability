@@ -18,6 +18,7 @@ from multimcp_api.domain.models import (
     InsertResult,
     LatencyRow,
     TraceSpan,
+    TraceSummary,
     WindowQuery,
 )
 from multimcp_api.repositories import stats
@@ -187,6 +188,23 @@ class BigQueryEventRepository:
         genai = [_row_to_genai(row) for row in genai_rows]
         mcp = [_row_to_mcp(row) for row in mcp_rows]
         return stats.build_trace(genai, mcp, trace_id)
+
+    async def list_traces(
+        self, *, start: datetime, end: datetime, limit: int
+    ) -> list[TraceSummary]:
+        genai_sql = f"""
+        SELECT * FROM `{self._table("genai_events")}`
+        WHERE occurred_at >= @start AND occurred_at < @end
+        """
+        mcp_sql = f"""
+        SELECT * FROM `{self._table("mcp_events")}`
+        WHERE occurred_at >= @start AND occurred_at < @end
+        """
+        genai = [_row_to_genai(row) for row in self._query(genai_sql, start, end)]
+        mcp = [_row_to_mcp(row) for row in self._query(mcp_sql, start, end)]
+        return stats.list_trace_summaries(
+            genai, mcp, start=start, end=end, limit=limit
+        )
 
     async def compare(self, query: CompareQuery) -> CompareResult:
         sql = f"""

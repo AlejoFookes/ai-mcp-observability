@@ -120,9 +120,9 @@ def main() -> None:
             {"role": "assistant", "content": result.text, "meta": meta}
         )
         st.info(
-            "Pegá el `trace_id` en el dashboard → Traces. "
-            "Después corré 2–3 preguntas con **support-v1** y otras con **support-v2**, "
-            "y abrí Compare."
+            f"[Abrir en dashboard Traces](http://127.0.0.1:5173/traces?trace_id={result.trace_id}) · "
+            "También aparecen solos en la lista (más reciente arriba). "
+            "Compare: support-v1 vs support-v2."
         )
 
 

@@ -84,6 +84,19 @@ export interface TraceResponse {
   spans: TraceSpan[];
 }
 
+export interface TraceSummary {
+  trace_id: string;
+  last_occurred_at: string;
+  span_count: number;
+  label: string | null;
+  prompt_version: string | null;
+}
+
+export interface TraceListResponse {
+  schema_version: SchemaVersion;
+  rows: TraceSummary[];
+}
+
 export interface CompareSide {
   key: string;
   request_count: number;

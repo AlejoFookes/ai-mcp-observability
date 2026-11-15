@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from multimcp_api.domain.models import (
     InsertResult,
     LatencyRow,
     TraceSpan,
+    TraceSummary,
     WindowQuery,
 )
 
@@ -30,6 +32,10 @@ class EventRepository(Protocol):
     async def latency(self, query: WindowQuery) -> list[LatencyRow]: ...
 
     async def get_trace(self, trace_id: str) -> list[TraceSpan]: ...
+
+    async def list_traces(
+        self, *, start: datetime, end: datetime, limit: int
+    ) -> list[TraceSummary]: ...
 
     async def compare(self, query: CompareQuery) -> CompareResult: ...
 
